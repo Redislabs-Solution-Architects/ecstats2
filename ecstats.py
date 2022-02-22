@@ -233,15 +233,16 @@ def get_reserved_instances(clusters_info):
 def process_aws_account(config, section, outDir):
     # connect to ElastiCache
     # aws key, secret and region
-    region = config.get(section, 'region')
-    access_key = config.get(section, 'aws_access_key_id')
-    secret_key = config.get(section, 'aws_secret_access_key')
-    session_token = config.get(section, 'aws_session_token')
+    aws_access_key_id = config.get(section, 'aws_access_key_id')
+    aws_secret_access_key = config.get(section, 'aws_secret_access_key')
+    aws_session_token = config.get(section, 'aws_session_token')
+    region_name = config.get(section, 'region_name')
     session = boto3.Session(
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-	aws_session_token=session_token,
-        region_name=region)
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+	    aws_session_token=aws_session_token,
+        region_name=region_name
+    )
 
     cluster_df = create_data_frame()
 
