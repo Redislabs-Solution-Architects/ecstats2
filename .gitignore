@@ -128,3 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 config.ini
+
+# MacOS
+.DS_Store
