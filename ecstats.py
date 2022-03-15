@@ -1,3 +1,4 @@
+from gc import DEBUG_UNCOLLECTABLE
 import os
 import sys
 import datetime
@@ -16,22 +17,22 @@ SECONDS_IN_DAY = 24 * SECONDS_IN_HOUR
 RUNNING_INSTANCES_WORKSHEET_NAME = 'ClusterData'
 RESERVED_INSTANCES_WORKSHEET_NAME = 'ReservedData'
 
-def get_avg_metrics():
+def get_max_metrics_hourly():
     metrics = [
-        ('GetTypeCmds', 'Average', SECONDS_IN_HOUR),
-        ('SetTypeCmds', 'Average', SECONDS_IN_HOUR),
-        ('HashBasedCmds', 'Average', SECONDS_IN_HOUR),
-        ('HyperLogLogBasedCmds', 'Average', SECONDS_IN_HOUR),
-        ('KeyBasedCmds', 'Average', SECONDS_IN_HOUR),
-        ('ListBasedCmds', 'Average', SECONDS_IN_HOUR),
-        ('SetBasedCmds', 'Average', SECONDS_IN_HOUR),
-        ('SortedSetBasedCmds', 'Average', SECONDS_IN_HOUR),
-        ('StringBasedCmds', 'Average', SECONDS_IN_HOUR),
-        ('StreamBasedCmds', 'Average', SECONDS_IN_HOUR)
+        ('GetTypeCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('SetTypeCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('HashBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('HyperLogLogBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('KeyBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('ListBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('SetBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('SortedSetBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('StringBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        ('StreamBasedCmds', 'Maximum', SECONDS_IN_HOUR)
     ]
     return metrics
 
-def get_max_metrics():
+def get_max_metrics_weekly():
     metrics = [
         ('CurrItems', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('BytesUsedForCache', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
@@ -135,9 +136,9 @@ def create_workbook(outDir, section, region_name):
     ws.title = RUNNING_INSTANCES_WORKSHEET_NAME
 
     df_columns = ["ClusterId", "NodeId", "NodeType", "Region"]
-    for metric, _, _ in get_max_metrics():
+    for metric, _, _ in get_max_metrics_weekly():
         df_columns.append(('%s (max over last week)' % metric))
-    for metric, _, _ in get_avg_metrics():
+    for metric, _, _ in get_max_metrics_hourly():
         df_columns.append(('%s (peak last week / hour)' % metric))
     ws.append(df_columns)
 
@@ -169,7 +170,7 @@ def get_running_instances_metrics(wb, clusters_info, session):
             row.append("%s" % instanceId)
             row.append("%s" % instanceDetails['CacheNodeType'])
             row.append("%s" % instanceDetails['PreferredAvailabilityZone'])
-            for (metric, aggregation, period) in get_max_metrics():
+            for (metric, aggregation, period) in get_max_metrics_weekly():
                 data_points = get_metric(
                     cloud_watch,
                     instanceId,
@@ -180,7 +181,7 @@ def get_running_instances_metrics(wb, clusters_info, session):
                 )
                 data_point = 0 if len(data_points) == 0 else data_points[0]
                 row.append(data_point)
-            for (metric, aggregation, period) in get_avg_metrics():
+            for (metric, aggregation, period) in get_max_metrics_hourly():
                 data_points = get_metric(
                     cloud_watch,
                     instanceId,
@@ -190,7 +191,10 @@ def get_running_instances_metrics(wb, clusters_info, session):
                     period
                 )
                 data_point = 0 if len(data_points) == 0 else max(data_points)
-                row.append(data_point)
+                # Due to how cloudwatch is doing the data sampling we need to multiply the values by 60
+                # in order to get the real hourly stats. Cloudwatch is sampling at minimum once every minute
+                # so we need to multiply by 60 in order to simulate an hourly throughput
+                row.append(data_point * 60)
             ws.append(row)
             row = []
     return wb
