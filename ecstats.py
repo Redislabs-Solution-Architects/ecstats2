@@ -1,4 +1,3 @@
-from gc import DEBUG_UNCOLLECTABLE
 import os
 import sys
 import datetime
