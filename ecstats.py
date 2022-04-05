@@ -16,17 +16,36 @@ SECONDS_IN_DAY = 24 * SECONDS_IN_HOUR
 RUNNING_INSTANCES_WORKSHEET_NAME = 'ClusterData'
 RESERVED_INSTANCES_WORKSHEET_NAME = 'ReservedData'
 
+
 def get_max_metrics_hourly():
     metrics = [
+        # GetTypeCmds   The total number of read-only type commands. This is derived from the Redis commandstats statistic by summing all of the read-only type commands (get, hget, scard, lrange, and so on.)
         ('GetTypeCmds', 'Maximum', SECONDS_IN_HOUR),
+        # SetTypeCmds	The total number of write types of commands. This is derived from the Redis commandstats statistic by summing all of the mutative types of commands that operate on data (set, hset, sadd, lpop, and so on.)
         ('SetTypeCmds', 'Maximum', SECONDS_IN_HOUR),
+        # ClusterBasedCmds	The total number of commands that are cluster-based. This is derived from the Redis commandstats statistic by summing all of the commands that act upon a cluster (cluster slot, cluster info, and so on).
+        ('ClusterBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # EvalBasedCmds	The total number of commands for eval-based commands. This is derived from the Redis commandstats statistic by summing eval, evalsha.
+        ('EvalBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # GeoSpatialBasedCmds	The total number of commands for geospatial-based commands. This is derived from the Redis commandstats statistic. It's derived by summing all of the geo type of commands: geoadd, geodist, geohash, geopos, georadius, and georadiusbymember.
+        ('GeoSpatialBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # HashBasedCmds	The total number of commands that are hash-based. This is derived from the Redis commandstats statistic by summing all of the commands that act upon one or more hashes (hget, hkeys, hvals, hdel, and so on).
         ('HashBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # HyperLogLogBasedCmds	The total number of HyperLogLog-based commands. This is derived from the Redis commandstats statistic by summing all of the pf type of commands (pfadd, pfcount, pfmerge, and so on.).
         ('HyperLogLogBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # KeyBasedCmds	The total number of commands that are key-based. This is derived from the Redis commandstats statistic by summing all of the commands that act upon one or more keys across multiple data structures (del, expire, rename, and so on.).
         ('KeyBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # ListBasedCmds	The total number of commands that are list-based. This is derived from the Redis commandstats statistic by summing all of the commands that act upon one or more lists (lindex, lrange, lpush, ltrim, and so on).
         ('ListBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # PubSubBasedCmds	The total number of commands for pub/sub functionality. This is derived from the Redis commandstatsstatistics by summing all of the commands used for pub/sub functionality: psubscribe, publish, pubsub, punsubscribe, subscribe, and unsubscribe.
+        ('PubSubBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # SetBasedCmds	The total number of commands that are set-based. This is derived from the Redis commandstats statistic by summing all of the commands that act upon one or more sets (scard, sdiff, sadd, sunion, and so on).
         ('SetBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # SortedSetBasedCmds	The total number of commands that are sorted set-based. This is derived from the Redis commandstats statistic by summing all of the commands that act upon one or more sorted sets (zcount, zrange, zrank, zadd, and so on).
         ('SortedSetBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # StringBasedCmds	The total number of commands that are string-based. This is derived from the Redis commandstats statistic by summing all of the commands that act upon one or more strings (strlen, setex, setrange, and so on).
         ('StringBasedCmds', 'Maximum', SECONDS_IN_HOUR),
+        # StreamBasedCmds	The total number of commands that are stream-based. This is derived from the Redis commandstats statistic by summing all of the commands that act upon one or more streams data types (xrange, xlen, xadd, xdel, and so on).
         ('StreamBasedCmds', 'Maximum', SECONDS_IN_HOUR)
     ]
     return metrics

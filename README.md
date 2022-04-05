@@ -1,11 +1,15 @@
 # ECSTATS
 
-TBD
+ECstats is a tool for extracting ElasticCache database metrics. The script is able to process multiple databases, both single instance, replicated and clustered ones. 
+
+The script will query cloudwatch for the metrics. It will never connect to the Redis databases, it will NOT send any commands.
+
+This script by no means will affect the performance and the data stored in the Redis databases it is scanning.
 
 
 ## Installation
 
-TBD
+The script will run on any system with Python 3.6 or greater installed.
 
 ### Running the script from source
 
