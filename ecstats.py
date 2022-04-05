@@ -260,6 +260,10 @@ def process_aws_account(config, section, outDir):
     print("Done!")
 
 def main():
+    if not sys.version_info >= (3, 6):
+        print("Please upgrade python to a version at least 3.6".format(args.configFile))
+        exit(1)
+
     parser = optparse.OptionParser()
     parser.add_option(
         "-c", 

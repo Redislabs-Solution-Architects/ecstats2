@@ -1,8 +1,8 @@
 # ECSTATS
 
-ECstats is a tool for extracting ElasticCache database metrics. The script is able to process multiple databases, both single instance, replicated and clustered ones. 
+ECstats is a tool for extracting ElasticCache database metrics. The script is able to process all the Redis databases, both single instance, replicated and clustered ones that belong to specific AWS region. Multiple regions can be defined in the configuration. 
 
-The script will query cloudwatch for the metrics. It will never connect to the Redis databases, it will NOT send any commands.
+The script will purely query cloudwatch for the metrics. It will never connect to the Redis databases and it will NOT send any commands to the databases.
 
 This script by no means will affect the performance and the data stored in the Redis databases it is scanning.
 
