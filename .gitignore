@@ -131,3 +131,6 @@ config.ini
 
 # MacOS
 .DS_Store
+
+# Output files
+.xlsx
