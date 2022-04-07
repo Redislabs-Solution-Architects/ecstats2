@@ -153,17 +153,28 @@ def create_workbook(outDir, section, region_name):
     ws = wb.active
     ws.title = RUNNING_INSTANCES_WORKSHEET_NAME
 
-    df_columns = ["ClusterId", "NodeId", "NodeType", "Region"]
+    df_columns = ["Source", "ClusterId", "NodeId", "NodeRole", "NodeType", "Region"]
     for metric, _, _ in get_max_metrics_weekly():
-        df_columns.append(('%s (max over last week)' % metric))
+        df_columns.append(metric)
     for metric, _, _ in get_max_metrics_hourly():
-        df_columns.append(('%s (peak last week / hour)' % metric))
+        df_columns.append(metric)
     ws.append(df_columns)
 
     ws = wb.create_sheet(RESERVED_INSTANCES_WORKSHEET_NAME)    
     df_columns = ["Instance Type", "Count", "Remaining Time (days)"]
     ws.append(df_columns)    
     return wb
+
+def get_instance_role(clusterId, nodeId):
+    if clusterId == nodeId:
+        return "Master"
+    parts = nodeId.replace(clusterId, "").strip("-").split("-")
+    if len(parts) == 1:
+        return "Master"
+    if int(parts[1]) == 1:
+        return "Master"
+    return "Replica"
+    
 
 def get_running_instances_metrics(wb, clusters_info, session):
     """
@@ -180,12 +191,15 @@ def get_running_instances_metrics(wb, clusters_info, session):
     for instanceId, instanceDetails in running_instances.items():
         for node in instanceDetails.get('CacheNodes'):
             print("Fetching node %s details" % (instanceDetails['CacheClusterId']))
+            clusterId = instanceId
             if 'ReplicationGroupId' in instanceDetails:
-                row.append("%s" % instanceDetails['ReplicationGroupId'])
-            else:
-                row.append("")
+                clusterId = instanceDetails['ReplicationGroupId']
+            nodeRole = get_instance_role(clusterId, instanceId)
 
+            row.append("EC")
+            row.append("%s" % clusterId)
             row.append("%s" % instanceId)
+            row.append("%s" % nodeRole)
             row.append("%s" % instanceDetails['CacheNodeType'])
             row.append("%s" % instanceDetails['PreferredAvailabilityZone'])
             for (metric, aggregation, period) in get_max_metrics_weekly():
