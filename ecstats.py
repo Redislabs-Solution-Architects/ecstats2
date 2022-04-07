@@ -225,8 +225,9 @@ def get_running_instances_metrics(wb, clusters_info, session):
                 data_point = 0 if len(data_points) == 0 else max(data_points)
                 # Due to how cloudwatch is doing the data sampling we need to multiply the values by 60
                 # in order to get the real hourly stats. Cloudwatch is sampling at minimum once every minute
-                # so we need to multiply by 60 in order to simulate an hourly throughput
-                row.append(data_point * 60)
+                # so we need to multiply by 60 in order to simulate an hourly throughput. In order to get
+                # actual operation per second we then need to divide by 3600.
+                row.append(round(data_point / 60))
             ws.append(row)
             row = []
     return wb
