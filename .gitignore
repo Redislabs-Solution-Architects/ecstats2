@@ -133,4 +133,5 @@ config.ini
 .DS_Store
 
 # Output files
-.xlsx
+*.xlsx
+*.csv
