@@ -169,12 +169,11 @@ def get_instance_role(clusterId, nodeId):
     if clusterId == nodeId:
         return "Master"
     parts = nodeId.replace(clusterId, "").strip("-").split("-")
-    if len(parts) == 1:
+    if len(parts) == 1 and int(parts[0]) == 1:
         return "Master"
-    if int(parts[1]) == 1:
+    if len(parts) == 2 and int(parts[1]) == 1:
         return "Master"
-    return "Replica"
-    
+    return "Replica"    
 
 def get_running_instances_metrics(wb, clusters_info, session):
     """
