@@ -6,6 +6,8 @@ The script will purely query cloudwatch for the metrics. It will never connect t
 
 This script by no means will affect the performance and the data stored in the Redis databases it is scanning.
 
+The script will need at minimum CloudwatchReadOnlyAccess & AmazonElastiCacheReadOnlyAccess privilleges for extracting the information.
+
 
 ## Installation
 
