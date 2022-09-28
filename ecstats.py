@@ -143,6 +143,50 @@ def get_metric(cloud_watch, cluster_id, node, metric, aggregation, period):
     raw_data = [rec[aggregation] for rec in response['Datapoints']]
     return raw_data
 
+def get_metric_curr(cloud_watch, cluster_id, node, metric):
+    """Write node related metrics to file
+    Args:
+        ClusterId, node and metric to write
+    Returns:
+    The metric value
+    """
+    now = datetime.datetime.now()
+
+    response = cloud_watch.get_metric_data(
+        MetricDataQueries=[
+            {
+                'Id': 'is_master_test',
+                'MetricStat': {
+                    'Metric': {
+                        'Namespace': 'AWS/ElastiCache',
+                        'MetricName': metric,
+                        'Dimensions': [
+                            
+                                {'Name': 'CacheClusterId', 'Value': cluster_id},
+                                {'Name': 'CacheNodeId', 'Value': node}
+                            
+                        ]
+                    },
+                    'Period': 60,
+                    'Stat': 'Maximum',
+                    'Unit': 'Count'
+                },
+                'Label': 'string',
+                'ReturnData': True
+            },
+        ],
+        StartTime = int(round(now.timestamp())) - SECONDS_IN_HOUR,
+        EndTime = int(round(now.timestamp())),
+        ScanBy='TimestampDescending',
+        MaxDatapoints=1,
+    )
+
+    raw_data = [rec['Values'] for rec in response['MetricDataResults']]
+    try:
+        return raw_data[0][0]
+    except:
+        return -1
+    
 def create_workbook(outDir, section, region_name):
     """Create an empty workbook dataframe with headers
     Args:
@@ -165,16 +209,6 @@ def create_workbook(outDir, section, region_name):
     ws.append(df_columns)    
     return wb
 
-def get_instance_role(clusterId, nodeId):
-    if clusterId == nodeId:
-        return "Master"
-    parts = nodeId.replace(clusterId, "").strip("-").split("-")
-    if len(parts) == 1 and int(parts[0]) == 1:
-        return "Master"
-    if len(parts) == 2 and int(parts[1]) == 1:
-        return "Master"
-    return "Replica"    
-
 def get_running_instances_metrics(wb, clusters_info, session):
     """
     Get all the metrics for the clusters in the given set of clusters
@@ -193,7 +227,8 @@ def get_running_instances_metrics(wb, clusters_info, session):
             clusterId = instanceId
             if 'ReplicationGroupId' in instanceDetails:
                 clusterId = instanceDetails['ReplicationGroupId']
-            nodeRole = get_instance_role(clusterId, instanceId)
+
+            nodeRole = 'Master' if get_metric_curr(cloud_watch, instanceId, node.get('CacheNodeId'), 'IsMaster') > 0 else 'Replica'
 
             row.append("EC")
             row.append("%s" % clusterId)
