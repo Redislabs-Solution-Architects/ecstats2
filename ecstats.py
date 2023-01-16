@@ -55,6 +55,7 @@ def get_max_metrics_weekly():
         ('CurrItems', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('BytesUsedForCache', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('CacheHits', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('CacheHitRate', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('CacheMisses', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('CurrConnections', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('NetworkBytesIn', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
@@ -64,7 +65,30 @@ def get_max_metrics_weekly():
         ('EngineCPUUtilization', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('Evictions', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('ReplicationBytes', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
-        ('ReplicationLag', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS)
+        ('ReplicationLag', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('FreeableMemory', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('SwapUsage', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('DatabaseMemoryUsagePercentage', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('NetworkBandwidthInAllowanceExceeded', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('NetworkBandwidthOutAllowanceExceeded', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('NetworkPacketsPerSecondAllowanceExceeded', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('AuthenticationFailures', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('ChannelAuthorizationFailures', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('CommandAuthorizationFailures', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('KeyAuthorizationFailures', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('TrafficManagementActive', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('ClusterBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('EvalBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('GetTypeCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('KeyBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('ListBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('HashbasedCmdLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('PubSubBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('SetBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('SetTypeCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('SortedSetBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('StringBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('StreamBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
     ]
     return metrics
 
@@ -95,6 +119,17 @@ def get_clusters_info(session):
     page_iterator = paginator.paginate(ShowCacheNodeInfo=True)
     # Loop through running ElastiCache instance and record their engine,
     # type, and name.
+
+    snaps = {}
+
+    #Get all the present snapshots
+    snapshots = conn.describe_snapshots()
+
+    #Loop through the snaps and add them to a dict
+    for item in snapshots['Snapshots']:
+        if item['SnapshotRetentionLimit'] > 0:
+            snaps[item['ReplicationGroupId']] = item['SnapshotRetentionLimit']
+
     for page in page_iterator:
         for instance in page['CacheClusters']:
             if (instance['CacheClusterStatus'] == 'available' and instance['Engine'] == 'redis'):
@@ -116,6 +151,9 @@ def get_clusters_info(session):
                     'count': reserved_instance['CacheNodeCount'],
                     'expiry_time': calc_expiry_time(expiry=expiry_time)
                 }
+
+    #Add the snapshots set to the result dict
+    results['snapshots'] = snaps
     return results
 
 def get_metric(cloud_watch, cluster_id, node, metric, aggregation, period):
@@ -197,7 +235,7 @@ def create_workbook(outDir, section, region_name):
     ws = wb.active
     ws.title = RUNNING_INSTANCES_WORKSHEET_NAME
 
-    df_columns = ["Source", "ClusterId", "NodeId", "NodeRole", "NodeType", "Region"]
+    df_columns = ["Source", "ClusterId", "NodeId", "SnapshotRetentionLimit", "NodeRole", "NodeType", "Region"]
     for metric, _, _ in get_max_metrics_weekly():
         df_columns.append(metric)
     for metric, _, _ in get_max_metrics_hourly():
@@ -229,10 +267,14 @@ def get_running_instances_metrics(wb, clusters_info, session):
                 clusterId = instanceDetails['ReplicationGroupId']
 
             nodeRole = 'Master' if get_metric_curr(cloud_watch, instanceId, node.get('CacheNodeId'), 'IsMaster') > 0 else 'Replica'
+            
+            #If the name of cluster in the snapshots set set SnapshotRetentionLimit else 0
+            snapshotRetentionLimit = clusters_info['snapshots'][clusterId] if clusterId in clusters_info['snapshots'] else 0
 
             row.append("EC")
             row.append("%s" % clusterId)
             row.append("%s" % instanceId)
+            row.append("%s" % snapshotRetentionLimit)
             row.append("%s" % nodeRole)
             row.append("%s" % instanceDetails['CacheNodeType'])
             row.append("%s" % instanceDetails['PreferredAvailabilityZone'])
