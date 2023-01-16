@@ -82,7 +82,7 @@ def get_max_metrics_weekly():
         ('GetTypeCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('KeyBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('ListBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
-        ('HashbasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ('HashBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('PubSubBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('SetBasedCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
         ('SetTypeCmdsLatency', 'Maximum', SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
