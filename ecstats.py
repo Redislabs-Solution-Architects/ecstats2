@@ -127,8 +127,12 @@ def get_clusters_info(session):
 
     #Loop through the snaps and add them to a dict
     for item in snapshots['Snapshots']:
-        if item['SnapshotRetentionLimit'] > 0:
-            snaps[item['ReplicationGroupId']] = item['SnapshotRetentionLimit']
+        try:
+            if item['SnapshotRetentionLimit'] > 0:
+                #If there isnt a cluster name
+                snaps[item['ReplicationGroupId']] = item['SnapshotRetentionLimit']
+        finally:
+            pass
 
     for page in page_iterator:
         for instance in page['CacheClusters']:
