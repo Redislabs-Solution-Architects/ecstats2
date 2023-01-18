@@ -117,23 +117,9 @@ def get_clusters_info(session):
 
     paginator = conn.get_paginator('describe_cache_clusters')
     page_iterator = paginator.paginate(ShowCacheNodeInfo=True)
+
     # Loop through running ElastiCache instance and record their engine,
     # type, and name.
-
-    snaps = {}
-
-    #Get all the present snapshots
-    snapshots = conn.describe_snapshots()
-
-    #Loop through the snaps and add them to a dict
-    for item in snapshots['Snapshots']:
-        try:
-            if item['SnapshotRetentionLimit'] > 0:
-                #If there isnt a cluster name
-                snaps[item['ReplicationGroupId']] = item['SnapshotRetentionLimit']
-        finally:
-            pass
-
     for page in page_iterator:
         for instance in page['CacheClusters']:
             if (instance['CacheClusterStatus'] == 'available' and instance['Engine'] == 'redis'):
@@ -156,8 +142,6 @@ def get_clusters_info(session):
                     'expiry_time': calc_expiry_time(expiry=expiry_time)
                 }
 
-    #Add the snapshots set to the result dict
-    results['snapshots'] = snaps
     return results
 
 def get_metric(cloud_watch, cluster_id, node, metric, aggregation, period):
@@ -239,7 +223,7 @@ def create_workbook(outDir, section, region_name):
     ws = wb.active
     ws.title = RUNNING_INSTANCES_WORKSHEET_NAME
 
-    df_columns = ["Source", "ClusterId", "NodeId", "SnapshotRetentionLimit", "NodeRole", "NodeType", "Region"]
+    df_columns = ["Source", "ClusterId", "NodeId", "NodeRole", "NodeType", "Region"]
     for metric, _, _ in get_max_metrics_weekly():
         df_columns.append(metric)
     for metric, _, _ in get_max_metrics_hourly():
@@ -272,13 +256,10 @@ def get_running_instances_metrics(wb, clusters_info, session):
 
             nodeRole = 'Master' if get_metric_curr(cloud_watch, instanceId, node.get('CacheNodeId'), 'IsMaster') > 0 else 'Replica'
             
-            #If the name of cluster in the snapshots set set SnapshotRetentionLimit else 0
-            snapshotRetentionLimit = clusters_info['snapshots'][clusterId] if clusterId in clusters_info['snapshots'] else 0
-
+            
             row.append("EC")
             row.append("%s" % clusterId)
             row.append("%s" % instanceId)
-            row.append("%s" % snapshotRetentionLimit)
             row.append("%s" % nodeRole)
             row.append("%s" % instanceDetails['CacheNodeType'])
             row.append("%s" % instanceDetails['PreferredAvailabilityZone'])
