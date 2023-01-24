@@ -127,8 +127,11 @@ def get_clusters_info(session):
 
     #Loop through the snaps and add them to a dict
     for item in snapshots['Snapshots']:
-        if item['SnapshotRetentionLimit'] > 0:
-            snaps[item['ReplicationGroupId']] = item['SnapshotRetentionLimit']
+        try: 
+            if item['SnapshotRetentionLimit'] >= 0 and item['ReplicationGroupId']:
+                snaps[item['ReplicationGroupId']] = item['SnapshotRetentionLimit']
+        except:
+            pass
 
     for page in page_iterator:
         for instance in page['CacheClusters']:
@@ -268,8 +271,8 @@ def get_running_instances_metrics(wb, clusters_info, session):
 
             nodeRole = 'Master' if get_metric_curr(cloud_watch, instanceId, node.get('CacheNodeId'), 'IsMaster') > 0 else 'Replica'
             
-            #If the name of cluster in the snapshots set set SnapshotRetentionLimit else 0
-            snapshotRetentionLimit = clusters_info['snapshots'][clusterId] if clusterId in clusters_info['snapshots'] else 0
+            #If the name of cluster in the snapshots set set SnapshotRetentionLimit else -1 when there has been an error
+            snapshotRetentionLimit = clusters_info['snapshots'][clusterId] if clusterId in clusters_info['snapshots'] else -1
 
             row.append("EC")
             row.append("%s" % clusterId)
