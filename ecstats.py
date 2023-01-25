@@ -118,6 +118,20 @@ def get_clusters_info(session):
     paginator = conn.get_paginator('describe_cache_clusters')
     page_iterator = paginator.paginate(ShowCacheNodeInfo=True)
 
+    snaps = {}
+
+    #Get all the present snapshots
+    snapshots = conn.describe_snapshots()
+
+
+    #Loop through the snaps and add them to a dict
+    for snapshot in snapshots['Snapshots']:
+        try:
+            if snapshot['SnapshotRetentionLimit'] > 0 and snapshot['ReplicationGroupId']:
+                snaps[snapshot['ReplicationGroupId']] = snapshot['SnapshotRetentionLimit']
+        except:
+            pass
+
     # Loop through running ElastiCache instance and record their engine,
     # type, and name.
     for page in page_iterator:
@@ -141,6 +155,9 @@ def get_clusters_info(session):
                     'count': reserved_instance['CacheNodeCount'],
                     'expiry_time': calc_expiry_time(expiry=expiry_time)
                 }
+
+    #Add the snapshots set to the result dict
+    results['snapshots'] = snaps
 
     return results
 
@@ -223,7 +240,7 @@ def create_workbook(outDir, section, region_name):
     ws = wb.active
     ws.title = RUNNING_INSTANCES_WORKSHEET_NAME
 
-    df_columns = ["Source", "ClusterId", "NodeId", "NodeRole", "NodeType", "Region"]
+    df_columns = ["Source", "ClusterId", "NodeId", "NodeRole", "NodeType", "Region", "SnapshotRetentionLimit"]
     for metric, _, _ in get_max_metrics_weekly():
         df_columns.append(metric)
     for metric, _, _ in get_max_metrics_hourly():
@@ -255,6 +272,9 @@ def get_running_instances_metrics(wb, clusters_info, session):
                 clusterId = instanceDetails['ReplicationGroupId']
 
             nodeRole = 'Master' if get_metric_curr(cloud_watch, instanceId, node.get('CacheNodeId'), 'IsMaster') > 0 else 'Replica'
+
+            #If the name of cluster in the snapshots set set SnapshotRetentionLimit else 0
+            snapshotRetentionLimit = clusters_info['snapshots'][clusterId] if clusterId in clusters_info['snapshots'] else -1
             
             
             row.append("EC")
@@ -263,6 +283,8 @@ def get_running_instances_metrics(wb, clusters_info, session):
             row.append("%s" % nodeRole)
             row.append("%s" % instanceDetails['CacheNodeType'])
             row.append("%s" % instanceDetails['PreferredAvailabilityZone'])
+            row.append("%s" % snapshotRetentionLimit)
+
             for (metric, aggregation, period) in get_max_metrics_weekly():
                 data_points = get_metric(
                     cloud_watch,
