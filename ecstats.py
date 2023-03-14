@@ -128,12 +128,13 @@ def get_clusters_info(session):
     snaps = {}
 
     #Loop through the snaps and add them to a dict
-    for snapshot in snapshots['Snapshots']:
-        try:
-            if snapshot['SnapshotRetentionLimit'] > 0 and snapshot['ReplicationGroupId']:
-                snaps[snapshot['ReplicationGroupId']] = snapshot['SnapshotRetentionLimit']
-        except:
-            pass
+    if "Snapshots" in snapshots:
+        for snapshot in snapshots['Snapshots']:
+            try:
+                if snapshot['SnapshotRetentionLimit'] > 0 and snapshot['ReplicationGroupId']:
+                    snaps[snapshot['ReplicationGroupId']] = snapshot['SnapshotRetentionLimit']
+            except:
+                pass
 
     # Loop through running ElastiCache instance and record their engine,
     # type, and name.
