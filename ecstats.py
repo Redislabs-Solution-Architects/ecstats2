@@ -117,20 +117,24 @@ def get_clusters_info(session):
 
     paginator = conn.get_paginator('describe_cache_clusters')
     page_iterator = paginator.paginate(ShowCacheNodeInfo=True)
+    
+    #Get all the present snapshots
+    snapshots = {}
+    try:
+        snapshots = conn.describe_snapshots()
+    except:
+        pass
 
     snaps = {}
 
-    #Get all the present snapshots
-    snapshots = conn.describe_snapshots()
-
-
     #Loop through the snaps and add them to a dict
-    for snapshot in snapshots['Snapshots']:
-        try:
-            if snapshot['SnapshotRetentionLimit'] > 0 and snapshot['ReplicationGroupId']:
-                snaps[snapshot['ReplicationGroupId']] = snapshot['SnapshotRetentionLimit']
-        except:
-            pass
+    if "Snapshots" in snapshots:
+        for snapshot in snapshots['Snapshots']:
+            try:
+                if snapshot['SnapshotRetentionLimit'] > 0 and snapshot['ReplicationGroupId']:
+                    snaps[snapshot['ReplicationGroupId']] = snapshot['SnapshotRetentionLimit']
+            except:
+                pass
 
     # Loop through running ElastiCache instance and record their engine,
     # type, and name.
