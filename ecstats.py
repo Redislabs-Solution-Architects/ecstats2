@@ -155,10 +155,16 @@ def get_clusters_info(session):
                 # No end datetime is returned, so calculate from 'StartTime'
                 # (a `DateTime`) and 'Duration' in seconds (integer)
                 expiry_time = reserved_instance['StartTime'] + datetime.timedelta(seconds=reserved_instance['Duration'])
-                results['elc_reserved_instances'][instance_type] = {
-                    'count': reserved_instance['CacheNodeCount'],
-                    'expiry_time': calc_expiry_time(expiry=expiry_time)
-                }
+                if '%s_%s' % (instance_type, calc_expiry_time(expiry=expiry_time)) in results['elc_reserved_instances']:
+                    results['elc_reserved_instances']['%s_%s' % (instance_type, calc_expiry_time(expiry=expiry_time))] = {
+                        'count': results['elc_reserved_instances']['%s_%s' % (instance_type, calc_expiry_time(expiry=expiry_time))]['count'] + reserved_instance['CacheNodeCount'],
+                        'expiry_time': calc_expiry_time(expiry=expiry_time)
+                    }
+                else:
+                    results['elc_reserved_instances']['%s_%s' % (instance_type, calc_expiry_time(expiry=expiry_time))] = {
+                        'count': reserved_instance['CacheNodeCount'],
+                        'expiry_time': calc_expiry_time(expiry=expiry_time)
+                    }
 
     #Add the snapshots set to the result dict
     results['snapshots'] = snaps
@@ -324,9 +330,9 @@ def get_reserved_instances_info(wb, clusters_info):
     ws = wb[RESERVED_INSTANCES_WORKSHEET_NAME]
     for instanceId, instanceDetails in reserved_instances.items():
         ws.append([
-            ("%s" % instanceId),
+            ("%s" % instanceId.split('_')[0]),
             ("%s" % instanceDetails['count']),
-            ("%s," % instanceDetails['expiry_time'])
+            ("%s" % instanceDetails['expiry_time'])
         ])
     return wb
 
