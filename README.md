@@ -83,3 +83,37 @@ For example, output of this command is `/a/path/to/ecstats`. Use the below docke
 # docker run -v /a/path/to/ecstats:/app -t sumitshatwara/redis-ecstats python3 ecstats.py
 ```
 
+### 3. Running the Script Using EC2 Instance Profiles (No AWS Keys and Credentials Required on config.ini)
+
+If you are running this script on an EC2 instance that has an attached IAM role, you can avoid specifying the AWS Access Key ID and Secret Access Key in the configuration file.\
+The script will automatically use the IAM role’s credentials to access AWS services like ElastiCache and CloudWatch.
+
+#### Steps:
+
+**Ensure the EC2 instance has an IAM role with the required permissions:**
+	•	CloudWatchReadOnlyAccess
+	•	AmazonElastiCacheReadOnlyAccess
+
+**Modify the config.ini file:**
+
+Simply omit the aws_access_key_id and aws_secret_access_key fields from the configuration file. You only need to specify the region_name for each environment.
+
+_Example config.ini:_
+
+```
+[production-us-east-1]
+region_name = us-east-1
+
+[production-us-west-1]
+region_name = us-west-1
+
+[staging-account-with-credentials]
+aws_access_key_id     = AKI<...>
+aws_secret_access_key = <ACME_BLABLABLA>
+region_name           = us-east-1
+```
+
+**Run the script normally:**
+```
+python ecstats.py -c config.ini
+```
