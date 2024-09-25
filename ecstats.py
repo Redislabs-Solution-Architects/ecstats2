@@ -331,23 +331,28 @@ def get_reserved_instances_info(wb, clusters_info):
     return wb
 
 def process_aws_account(config, section, outDir):
-    # connect to ElastiCache
-    # aws key, secret and region
-    aws_access_key_id = config.get(section, 'aws_access_key_id')
-    aws_secret_access_key = config.get(section, 'aws_secret_access_key')
-    region_name = config.get(section, 'region_name')
+    # Check if credentials are provided in the config file
+    if config.has_option(section, 'aws_access_key_id') and config.has_option(section, 'aws_secret_access_key'):
+        aws_access_key_id = config.get(section, 'aws_access_key_id')
+        aws_secret_access_key = config.get(section, 'aws_secret_access_key')
+        region_name = config.get(section, 'region_name')
 
-    if config.has_option(section, 'aws_session_token'):
-        aws_session_token = config.get(section, 'aws_session_token')
+        if config.has_option(section, 'aws_session_token'):
+            aws_session_token = config.get(section, 'aws_session_token')
+        else:
+            aws_session_token = None
+
+        # Create session with credentials
+        session = boto3.Session(
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token,
+            region_name=region_name
+        )
     else:
-        aws_session_token = None
-
-    session = boto3.Session(
-        aws_access_key_id=aws_access_key_id,
-        aws_secret_access_key=aws_secret_access_key,
-	    aws_session_token=aws_session_token,
-        region_name=region_name
-    )
+        # No credentials in config file, rely on instance profile credentials
+        region_name = config.get(section, 'region_name')
+        session = boto3.Session(region_name=region_name)
 
     print(f"Requesting information for the {section} nodes")
     clusters_info = get_clusters_info(session)
