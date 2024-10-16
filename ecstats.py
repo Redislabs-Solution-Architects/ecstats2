@@ -7,7 +7,7 @@ import boto3
 import openpyxl
 
 # Metric Collection Period (in days)
-METRIC_COLLECTION_PERIOD_DAYS = 7
+METRIC_COLLECTION_PERIOD_DAYS = int(os.environ.get('METRIC_COLLECTION_PERIOD_DAYS') or 7)
 
 SECONDS_IN_MINUTE = 60
 SECONDS_IN_HOUR = 60 * SECONDS_IN_MINUTE
