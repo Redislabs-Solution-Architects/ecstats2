@@ -140,7 +140,7 @@ def get_clusters_info(session):
     # type, and name.
     for page in page_iterator:
         for instance in page['CacheClusters']:
-            if (instance['CacheClusterStatus'] == 'available' and instance['Engine'] == 'redis'):
+            if (instance['CacheClusterStatus'] == 'available' and (instance['Engine'] == 'redis' or instance['Engine'] == 'valkey')):
                 cluster_id = instance['CacheClusterId']
                 results['elc_running_instances'][cluster_id] = instance
 
@@ -150,7 +150,7 @@ def get_clusters_info(session):
     # Loop through active ElastiCache RIs and record their type and engine.
     for page in page_iterator:
         for reserved_instance in page['ReservedCacheNodes']:
-            if (reserved_instance['State'] == 'active' and reserved_instance['ProductDescription'] == 'redis'):
+            if (reserved_instance['State'] == 'active' and (reserved_instance['ProductDescription'] == 'redis' or reserved_instance['ProductDescription'] == 'valkey')):
                 instance_type = reserved_instance['CacheNodeType']
                 # No end datetime is returned, so calculate from 'StartTime'
                 # (a `DateTime`) and 'Duration' in seconds (integer)
@@ -249,6 +249,7 @@ def create_workbook(outDir, section, region_name):
         df_columns.append(metric)
     for metric, _, _ in get_max_metrics_hourly():
         df_columns.append(metric)
+    df_columns.append("Engine")
     ws.append(df_columns)
 
     ws = wb.create_sheet(RESERVED_INSTANCES_WORKSHEET_NAME)    
@@ -315,6 +316,7 @@ def get_running_instances_metrics(wb, clusters_info, session):
                 # so we need to multiply by 60 in order to simulate an hourly throughput. In order to get
                 # actual operation per second we then need to divide by 3600.
                 row.append(round(data_point / 60))
+            row.append("%s" % instanceDetails['Engine'])                
             ws.append(row)
             row = []
     return wb
