@@ -511,8 +511,8 @@ def process_aws_account(config, section, outDir):
 
 
 def main():
-    if not sys.version_info >= (3, 6):
-        print("Please upgrade python to a version at least 3.6")
+    if not sys.version_info >= (3, 9):
+        print("Please upgrade python to a version at least 3.9")
         exit(1)
 
     parser = optparse.OptionParser()
