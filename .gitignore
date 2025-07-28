@@ -135,3 +135,6 @@ config.ini
 # Output files
 *.xlsx
 *.csv
+
+# Claude
+.claude
