@@ -8,22 +8,21 @@ This script by no means will affect the performance and the data stored in the R
 
 The script will need at minimum CloudwatchReadOnlyAccess & AmazonElastiCacheReadOnlyAccess privilleges for extracting the information.
 
-## 🚀 New Multithreaded Version
+## 🚀 Performance Features
 
-ECstats now includes a **multithreaded version** (`elasticache_metrics_multithreaded_fixed.py`) that significantly improves performance by processing multiple clusters and AWS accounts in parallel.
+ECstats now includes **optional multithreaded processing** that can significantly improve performance by processing multiple clusters and AWS accounts in parallel.
 
 ### Key Features:
-- **🏃‍♂️ Parallel Processing**: Process multiple AWS accounts and ElastiCache clusters simultaneously
+- **🔄 Backward Compatible**: Original single-threaded behavior by default
+- **⚡ Optional Multithreading**: Enable with `--enable-threading` flag
 - **⚙️ Configurable Threading**: Adjust thread counts for optimal performance
-- **🛡️ Thread-Safe Operations**: Safe concurrent access to shared resources
+- **🛡️ Thread-Safe Operations**: Safe concurrent access when threading is enabled
 - **📊 Progress Monitoring**: Real-time progress tracking with detailed logs
-- **⏱️ Performance Metrics**: Execution time tracking and statistics
+- **⏱️ Performance Metrics**: Execution time tracking
 
-### Default Thread Configuration:
-- **Account Threads**: 1 (processes AWS accounts sequentially)
+### Default Configuration (when threading enabled):
+- **Account Threads**: 1 (processes AWS accounts sequentially) 
 - **Cluster Threads**: 10 (processes up to 10 clusters/nodes in parallel within each account)
-
-This configuration optimizes performance while respecting AWS API rate limits.
 
 ## Installation
 
@@ -57,46 +56,43 @@ Copy the example configuration file and update its contents to match your config
 cp config.ini.example config.ini && vim config.ini
 ```
 
-#### Standard Version
+#### Basic Usage (Single-threaded - Original Behavior)
 Execute below python command to run the script. Use -c option with configuration file if the file name is different from config.ini
 
 ```bash
 python ecstats.py -c config.ini
 ```
 
-#### 🚀 Multithreaded Version (Recommended)
-For improved performance, use the multithreaded version:
+#### 🚀 Multithreaded Usage (Improved Performance)
+For improved performance, enable multithreading:
 
 ```bash
-# Basic usage with default threading (1 account thread, 10 cluster threads)
-python elasticache_metrics_multithreaded_fixed.py -c config.ini
+# Enable multithreading with default settings (1 account thread, 10 cluster threads)
+python ecstats.py -c config.ini --enable-threading
 
 # Custom thread configuration
-python elasticache_metrics_multithreaded_fixed.py -c config.ini --max-account-threads 2 --max-cluster-threads 15
+python ecstats.py -c config.ini --enable-threading --max-account-threads 2 --max-cluster-threads 15
 
-# With custom output directory
-python elasticache_metrics_multithreaded_fixed.py -c config.ini -d ./output --max-cluster-threads 20
+# High-performance configuration for large environments
+python ecstats.py -c config.ini --enable-threading --max-cluster-threads 20
+
+# Conservative configuration for rate-limit sensitive environments
+python ecstats.py -c config.ini --enable-threading --max-cluster-threads 5
 ```
 
-##### Thread Configuration Options:
+##### Threading Options:
+- `--enable-threading`: Enable multithreaded processing (default: disabled)
 - `--max-account-threads`: Number of AWS accounts to process in parallel (default: 1)
 - `--max-cluster-threads`: Number of clusters/nodes to process in parallel within each account (default: 10)
 
-##### Environment Variables:
-You can also set thread limits via environment variables:
-```bash
-export MAX_ACCOUNT_THREADS=1
-export MAX_CLUSTER_THREADS=10
-python elasticache_metrics_multithreaded_fixed.py -c config.ini
-```
-
 ##### Performance Guidelines:
-| Scenario | Account Threads | Cluster Threads | Use Case |
-|----------|----------------|-----------------|----------|
-| **Small Environment** | 1 | 5-8 | Few clusters, conservative approach |
-| **Medium Environment** | 1 | 10-15 | Balanced performance and stability |
-| **Large Environment** | 1-2 | 15-20 | Many clusters, maximum performance |
-| **Rate Limit Sensitive** | 1 | 5 | When AWS API limits are a concern |
+| Scenario | Command | Use Case |
+|----------|---------|----------|
+| **Default** | `python ecstats.py -c config.ini` | Original single-threaded behavior |
+| **Balanced** | `python ecstats.py -c config.ini --enable-threading` | Good performance with stability |
+| **High Performance** | `python ecstats.py -c config.ini --enable-threading --max-cluster-threads 20` | Maximum speed for large environments |
+| **Conservative** | `python ecstats.py -c config.ini --enable-threading --max-cluster-threads 5` | Rate-limit friendly |
+| **Multiple Accounts** | `python ecstats.py -c config.ini --enable-threading --max-account-threads 3` | Parallel account processing |
 
 When finished do not forget to deactivate the virtual environment
 
@@ -127,14 +123,18 @@ pwd
 ```
 For example, output of this command is `/a/path/to/ecstats`. Use the below docker command to run the script
 
-#### Standard Version
+#### Single-threaded (Default)
 ```bash
 docker run -v /a/path/to/ecstats:/app -t sumitshatwara/redis-ecstats python3 ecstats.py
 ```
 
-#### Multithreaded Version
+#### Multithreaded
 ```bash
-docker run -v /a/path/to/ecstats:/app -t sumitshatwara/redis-ecstats python3 elasticache_metrics_multithreaded_fixed.py --max-cluster-threads 10
+# With threading enabled
+docker run -v /a/path/to/ecstats:/app -t sumitshatwara/redis-ecstats python3 ecstats.py --enable-threading
+
+# With custom thread configuration
+docker run -v /a/path/to/ecstats:/app -t sumitshatwara/redis-ecstats python3 ecstats.py --enable-threading --max-cluster-threads 15
 ```
 
 ### 3. Running the Script Using EC2 Instance Profiles (No AWS Keys and Credentials Required on config.ini)
@@ -169,16 +169,16 @@ region_name           = us-east-1
 
 **Run the script normally:**
 ```bash
-# Standard version
+# Single-threaded
 python ecstats.py -c config.ini
 
-# Multithreaded version
-python elasticache_metrics_multithreaded_fixed.py -c config.ini
+# Multithreaded
+python ecstats.py -c config.ini --enable-threading
 ```
 
 ## 📊 Output
 
-Both versions of the script generate Excel files with comprehensive ElastiCache metrics:
+The script generates Excel files with comprehensive ElastiCache metrics:
 
 ### File Structure:
 - **File naming**: `{environment}-{region}.xlsx`
@@ -192,34 +192,63 @@ Both versions of the script generate Excel files with comprehensive ElastiCache 
 - **Latency Metrics**: Command latency for different operation types
 - **Administrative**: Node roles, snapshot retention, engine information
 
-## 🔧 Troubleshooting
+## 🔧 Configuration
+
+### Environment Variables
+You can set threading defaults via environment variables:
+```bash
+export MAX_ACCOUNT_THREADS=1
+export MAX_CLUSTER_THREADS=10
+python ecstats.py -c config.ini --enable-threading
+```
+
+### Threading Behavior
+- **Single-threaded mode (default)**: Original behavior, processes one thing at a time
+- **Multithreaded mode**: Enabled with `--enable-threading`, processes multiple clusters in parallel
+- **Thread-safe operations**: Only activated when multithreading is enabled
+
+## 🔍 Troubleshooting
 
 ### Common Issues:
 
 **Rate Limiting**: If you encounter AWS API rate limits, reduce the number of cluster threads:
 ```bash
-python elasticache_metrics_multithreaded_fixed.py -c config.ini --max-cluster-threads 5
+python ecstats.py -c config.ini --enable-threading --max-cluster-threads 5
 ```
 
-**Memory Usage**: For very large environments, process accounts sequentially:
+**Memory Usage**: For very large environments, keep account processing sequential:
 ```bash
-python elasticache_metrics_multithreaded_fixed.py -c config.ini --max-account-threads 1 --max-cluster-threads 8
+python ecstats.py -c config.ini --enable-threading --max-account-threads 1 --max-cluster-threads 8
 ```
 
-**Thread-safe Errors**: If you encounter threading issues, fall back to the standard single-threaded version:
+**Threading Issues**: If you encounter any threading-related problems, fall back to single-threaded mode:
 ```bash
 python ecstats.py -c config.ini
 ```
 
+**Performance Tuning**: Start with default threading and adjust based on your environment:
+```bash
+# Start here
+python ecstats.py -c config.ini --enable-threading
+
+# If too slow, increase cluster threads
+python ecstats.py -c config.ini --enable-threading --max-cluster-threads 15
+
+# If rate limited, decrease cluster threads
+python ecstats.py -c config.ini --enable-threading --max-cluster-threads 5
+```
+
 ## 🚀 Performance Comparison
 
-| Environment Size | Standard Version | Multithreaded Version | Improvement |
-|------------------|------------------|-----------------------|-------------|
+| Environment Size | Single-threaded | Multithreaded | Improvement |
+|------------------|-----------------|---------------|-------------|
 | 10 clusters | ~5 minutes | ~1-2 minutes | 60-75% faster |
 | 50 clusters | ~25 minutes | ~5-8 minutes | 70-80% faster |
 | 100+ clusters | ~50+ minutes | ~10-15 minutes | 70-85% faster |
 
 *Results may vary based on AWS API response times and system resources.*
+
+**Note**: Single-threaded mode remains the default to ensure compatibility and stability. Enable multithreading when you need improved performance.
 
 ## 📋 Requirements
 
@@ -236,5 +265,19 @@ python ecstats.py -c config.ini
 
 ### System Requirements
 - Python 3.9 or higher
-- Sufficient memory for concurrent operations (recommended: 4GB+ RAM for large environments)
+- Sufficient memory for concurrent operations when using multithreading (recommended: 4GB+ RAM for large environments)
 - Network connectivity to AWS APIs
+
+## 🔄 Migration from Previous Versions
+
+If you were using the script before multithreading support was added:
+
+```bash
+# Your existing commands continue to work unchanged
+python ecstats.py -c config.ini
+
+# When you're ready for better performance, simply add --enable-threading
+python ecstats.py -c config.ini --enable-threading
+```
+
+No configuration file changes are required. All existing functionality remains identical.
