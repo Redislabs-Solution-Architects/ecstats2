@@ -18,6 +18,122 @@ SECONDS_IN_DAY = 24 * SECONDS_IN_HOUR
 RUNNING_INSTANCES_WORKSHEET_NAME = "ClusterData"
 RESERVED_INSTANCES_WORKSHEET_NAME = "ReservedData"
 
+# ElastiCache instance specifications mapping
+# Source: https://aws.amazon.com/elasticache/pricing/
+# Format: {instance_type: (memory_gb, vcpus, network_performance)}
+INSTANCE_SPECS = {
+    # Current generation - Memory optimized (R7g)
+    "cache.r7g.large": (13.07, 2, "Up to 12.5 Gigabit"),
+    "cache.r7g.xlarge": (26.32, 4, "Up to 12.5 Gigabit"),
+    "cache.r7g.2xlarge": (52.82, 8, "Up to 15 Gigabit"),
+    "cache.r7g.4xlarge": (105.81, 16, "Up to 15 Gigabit"),
+    "cache.r7g.8xlarge": (211.79, 32, "15 Gigabit"),
+    "cache.r7g.12xlarge": (317.77, 48, "22.5 Gigabit"),
+    "cache.r7g.16xlarge": (423.75, 64, "30 Gigabit"),
+    # Current generation - Memory optimized (R6g)
+    "cache.r6g.large": (13.07, 2, "Up to 10 Gigabit"),
+    "cache.r6g.xlarge": (26.32, 4, "Up to 10 Gigabit"),
+    "cache.r6g.2xlarge": (52.82, 8, "Up to 10 Gigabit"),
+    "cache.r6g.4xlarge": (105.81, 16, "Up to 10 Gigabit"),
+    "cache.r6g.8xlarge": (211.79, 32, "12 Gigabit"),
+    "cache.r6g.12xlarge": (317.77, 48, "20 Gigabit"),
+    "cache.r6g.16xlarge": (423.75, 64, "25 Gigabit"),
+    # Current generation - Memory optimized with NVMe SSD (R6gd)
+    "cache.r6gd.large": (13.07, 2, "Up to 10 Gigabit"),
+    "cache.r6gd.xlarge": (26.32, 4, "Up to 10 Gigabit"),
+    "cache.r6gd.2xlarge": (52.82, 8, "Up to 10 Gigabit"),
+    "cache.r6gd.4xlarge": (105.81, 16, "Up to 10 Gigabit"),
+    "cache.r6gd.8xlarge": (211.79, 32, "12 Gigabit"),
+    "cache.r6gd.12xlarge": (317.77, 48, "20 Gigabit"),
+    "cache.r6gd.16xlarge": (423.75, 64, "25 Gigabit"),
+    # Current generation - Memory optimized (R5)
+    "cache.r5.large": (13.07, 2, "Up to 10 Gigabit"),
+    "cache.r5.xlarge": (26.32, 4, "Up to 10 Gigabit"),
+    "cache.r5.2xlarge": (52.82, 8, "Up to 10 Gigabit"),
+    "cache.r5.4xlarge": (105.81, 16, "Up to 10 Gigabit"),
+    "cache.r5.12xlarge": (317.77, 48, "10 Gigabit"),
+    "cache.r5.24xlarge": (635.61, 96, "25 Gigabit"),
+    # Current generation - Memory optimized (R4)
+    "cache.r4.large": (12.3, 2, "Up to 10 Gigabit"),
+    "cache.r4.xlarge": (25.05, 4, "Up to 10 Gigabit"),
+    "cache.r4.2xlarge": (50.47, 8, "Up to 10 Gigabit"),
+    "cache.r4.4xlarge": (101.38, 16, "Up to 10 Gigabit"),
+    "cache.r4.8xlarge": (203.26, 32, "10 Gigabit"),
+    "cache.r4.16xlarge": (407.00, 64, "25 Gigabit"),
+    # Current generation - Compute optimized (C7gn)
+    "cache.c7gn.large": (3.19, 2, "Up to 30 Gigabit"),
+    "cache.c7gn.xlarge": (6.38, 4, "Up to 40 Gigabit"),
+    "cache.c7gn.2xlarge": (12.76, 8, "Up to 50 Gigabit"),
+    "cache.c7gn.4xlarge": (25.52, 16, "Up to 50 Gigabit"),
+    "cache.c7gn.8xlarge": (51.04, 32, "50 Gigabit"),
+    "cache.c7gn.12xlarge": (76.56, 48, "75 Gigabit"),
+    "cache.c7gn.16xlarge": (102.08, 64, "100 Gigabit"),
+    # Current generation - Compute optimized (C7g)
+    "cache.c7g.large": (3.19, 2, "Up to 12.5 Gigabit"),
+    "cache.c7g.xlarge": (6.38, 4, "Up to 12.5 Gigabit"),
+    "cache.c7g.2xlarge": (12.76, 8, "Up to 15 Gigabit"),
+    "cache.c7g.4xlarge": (25.52, 16, "Up to 15 Gigabit"),
+    "cache.c7g.8xlarge": (51.04, 32, "15 Gigabit"),
+    "cache.c7g.12xlarge": (76.56, 48, "22.5 Gigabit"),
+    "cache.c7g.16xlarge": (102.08, 64, "30 Gigabit"),
+    # Current generation - General purpose (M7g)
+    "cache.m7g.large": (6.38, 2, "Up to 12.5 Gigabit"),
+    "cache.m7g.xlarge": (12.93, 4, "Up to 12.5 Gigabit"),
+    "cache.m7g.2xlarge": (26.04, 8, "Up to 15 Gigabit"),
+    "cache.m7g.4xlarge": (52.26, 16, "Up to 15 Gigabit"),
+    "cache.m7g.8xlarge": (104.71, 32, "15 Gigabit"),
+    "cache.m7g.12xlarge": (157.25, 48, "22.5 Gigabit"),
+    "cache.m7g.16xlarge": (209.99, 64, "30 Gigabit"),
+    # Current generation - General purpose (M6g)
+    "cache.m6g.large": (6.38, 2, "Up to 10 Gigabit"),
+    "cache.m6g.xlarge": (12.93, 4, "Up to 10 Gigabit"),
+    "cache.m6g.2xlarge": (26.04, 8, "Up to 10 Gigabit"),
+    "cache.m6g.4xlarge": (52.26, 16, "Up to 10 Gigabit"),
+    "cache.m6g.8xlarge": (104.71, 32, "12 Gigabit"),
+    "cache.m6g.12xlarge": (157.25, 48, "20 Gigabit"),
+    "cache.m6g.16xlarge": (209.99, 64, "25 Gigabit"),
+    # Current generation - General purpose (M5)
+    "cache.m5.large": (6.38, 2, "Up to 10 Gigabit"),
+    "cache.m5.xlarge": (12.93, 4, "Up to 10 Gigabit"),
+    "cache.m5.2xlarge": (26.04, 8, "Up to 10 Gigabit"),
+    "cache.m5.4xlarge": (52.26, 16, "Up to 10 Gigabit"),
+    "cache.m5.12xlarge": (157.25, 48, "10 Gigabit"),
+    "cache.m5.24xlarge": (315.49, 96, "25 Gigabit"),
+    # Current generation - General purpose (M4)
+    "cache.m4.large": (6.42, 2, "Moderate"),
+    "cache.m4.xlarge": (14.28, 4, "High"),
+    "cache.m4.2xlarge": (29.70, 8, "High"),
+    "cache.m4.4xlarge": (60.78, 16, "High"),
+    "cache.m4.10xlarge": (154.64, 40, "10 Gigabit"),
+    # Previous generation - General purpose (M3)
+    "cache.m3.medium": (2.78, 1, "Moderate"),
+    "cache.m3.large": (6.05, 2, "Moderate"),
+    "cache.m3.xlarge": (13.30, 4, "High"),
+    "cache.m3.2xlarge": (27.90, 8, "High"),
+    # Burstable performance (T4g)
+    "cache.t4g.micro": (0.5, 2, "Up to 5 Gigabit"),
+    "cache.t4g.small": (1.37, 2, "Up to 5 Gigabit"),
+    "cache.t4g.medium": (3.09, 2, "Up to 5 Gigabit"),
+    # Burstable performance (T3)
+    "cache.t3.micro": (0.5, 2, "Up to 5 Gigabit"),
+    "cache.t3.small": (1.37, 2, "Up to 5 Gigabit"),
+    "cache.t3.medium": (3.09, 2, "Up to 5 Gigabit"),
+    # Burstable performance (T2)
+    "cache.t2.micro": (0.555, 1, "Low to Moderate"),
+    "cache.t2.small": (1.55, 1, "Low to Moderate"),
+    "cache.t2.medium": (3.22, 2, "Low to Moderate"),
+}
+
+
+def get_instance_specs(instance_type):
+    """Get the specifications for a given instance type.
+    Args:
+        instance_type (str): The ElastiCache instance type (e.g., cache.r6g.xlarge)
+    Returns:
+        tuple: (memory_gb, vcpus, network_performance) or (None, None, None) if unknown
+    """
+    return INSTANCE_SPECS.get(instance_type, (None, None, None))
+
 
 def get_max_metrics_hourly():
     metrics = [
@@ -188,6 +304,49 @@ def get_max_metrics_weekly():
             "Maximum",
             SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS,
         ),
+    ]
+    return metrics
+
+
+def get_avg_metrics_weekly():
+    """Get average metrics for the weekly collection period.
+    These metrics complement the max metrics and provide better insight into typical workload.
+    """
+    metrics = [
+        ("CurrItems", "Average", SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        (
+            "BytesUsedForCache",
+            "Average",
+            SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS,
+        ),
+        ("CacheHits", "Average", SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ("CacheHitRate", "Average", SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ("CacheMisses", "Average", SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ("CurrConnections", "Average", SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ("NetworkBytesIn", "Average", SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        ("NetworkBytesOut", "Average", SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS),
+        (
+            "EngineCPUUtilization",
+            "Average",
+            SECONDS_IN_DAY * METRIC_COLLECTION_PERIOD_DAYS,
+        ),
+    ]
+    return metrics
+
+
+def get_avg_metrics_hourly():
+    """Get average metrics for hourly command-based metrics.
+    These metrics complement the max hourly metrics and provide better insight into typical throughput.
+    """
+    metrics = [
+        ("GetTypeCmds", "Average", SECONDS_IN_HOUR),
+        ("SetTypeCmds", "Average", SECONDS_IN_HOUR),
+        ("KeyBasedCmds", "Average", SECONDS_IN_HOUR),
+        ("StringBasedCmds", "Average", SECONDS_IN_HOUR),
+        ("HashBasedCmds", "Average", SECONDS_IN_HOUR),
+        ("ListBasedCmds", "Average", SECONDS_IN_HOUR),
+        ("SetBasedCmds", "Average", SECONDS_IN_HOUR),
+        ("SortedSetBasedCmds", "Average", SECONDS_IN_HOUR),
     ]
     return metrics
 
@@ -367,10 +526,31 @@ def create_workbook(outDir, section, region_name):
         "Region",
         "SnapshotRetentionLimit",
     ]
+
+    # Add instance specifications
+    df_columns.extend(["NodeMemoryGB", "NodeVCPUs", "NodeNetworkPerformance"])
+
+    # Add existing max metrics
     for metric, _, _ in get_max_metrics_weekly():
         df_columns.append(metric)
     for metric, _, _ in get_max_metrics_hourly():
         df_columns.append(metric)
+
+    # Add new average metrics with "Avg" prefix
+    for metric, _, _ in get_avg_metrics_weekly():
+        df_columns.append(f"Avg{metric}")
+    for metric, _, _ in get_avg_metrics_hourly():
+        df_columns.append(f"Avg{metric}")
+
+    # Add calculated columns
+    df_columns.extend(
+        [
+            "AvgKeySize",  # Average key size in bytes
+            "MaxThroughputOpsPerSec",  # Max throughput (ops/sec)
+            "AvgThroughputOpsPerSec",  # Average throughput (ops/sec)
+        ]
+    )
+
     df_columns.append("Engine")
     df_columns.append("QPF")
     ws.append(df_columns)
@@ -424,6 +604,20 @@ def get_running_instances_metrics(wb, clusters_info, session):
             row.append("%s" % instanceDetails["PreferredAvailabilityZone"])
             row.append("%s" % snapshotRetentionLimit)
 
+            # Add instance specifications
+            node_type = instanceDetails["CacheNodeType"]
+            memory_gb, vcpus, network_perf = get_instance_specs(node_type)
+            row.append(memory_gb if memory_gb is not None else "Unknown")
+            row.append(vcpus if vcpus is not None else "Unknown")
+            row.append(network_perf if network_perf is not None else "Unknown")
+
+            # Collect metrics and store for calculations
+            max_weekly_metrics = {}
+            avg_weekly_metrics = {}
+            max_hourly_metrics = {}
+            avg_hourly_metrics = {}
+
+            # Get max weekly metrics
             for metric, aggregation, period in get_max_metrics_weekly():
                 data_points = get_metric(
                     cloud_watch,
@@ -434,7 +628,10 @@ def get_running_instances_metrics(wb, clusters_info, session):
                     period,
                 )
                 data_point = 0 if len(data_points) == 0 else data_points[0]
+                max_weekly_metrics[metric] = data_point
                 row.append(data_point)
+
+            # Get max hourly metrics
             for metric, aggregation, period in get_max_metrics_hourly():
                 data_points = get_metric(
                     cloud_watch,
@@ -449,7 +646,83 @@ def get_running_instances_metrics(wb, clusters_info, session):
                 # in order to get the real hourly stats. Cloudwatch is sampling at minimum once every minute
                 # so we need to multiply by 60 in order to simulate an hourly throughput. In order to get
                 # actual operation per second we then need to divide by 3600.
-                row.append(round(data_point / 60))
+                normalized_data_point = round(data_point / 60)
+                max_hourly_metrics[metric] = normalized_data_point
+                row.append(normalized_data_point)
+
+            # Get average weekly metrics
+            for metric, aggregation, period in get_avg_metrics_weekly():
+                data_points = get_metric(
+                    cloud_watch,
+                    instanceId,
+                    node.get("CacheNodeId"),
+                    metric,
+                    aggregation,
+                    period,
+                )
+                data_point = 0 if len(data_points) == 0 else data_points[0]
+                avg_weekly_metrics[metric] = data_point
+                row.append(data_point)
+
+            # Get average hourly metrics
+            for metric, aggregation, period in get_avg_metrics_hourly():
+                data_points = get_metric(
+                    cloud_watch,
+                    instanceId,
+                    node.get("CacheNodeId"),
+                    metric,
+                    aggregation,
+                    period,
+                )
+                data_point = 0 if len(data_points) == 0 else max(data_points)
+                normalized_data_point = round(data_point / 60)
+                avg_hourly_metrics[metric] = normalized_data_point
+                row.append(normalized_data_point)
+
+            # Calculate average key size (BytesUsedForCache / CurrItems)
+            avg_bytes_used = avg_weekly_metrics.get("BytesUsedForCache", 0)
+            avg_curr_items = avg_weekly_metrics.get("CurrItems", 0)
+            avg_key_size = (
+                round(avg_bytes_used / avg_curr_items) if avg_curr_items > 0 else 0
+            )
+            row.append(avg_key_size)
+
+            # Calculate max throughput (ops/sec) - sum of all max command types
+            max_throughput = sum(
+                [
+                    max_hourly_metrics.get("GetTypeCmds", 0),
+                    max_hourly_metrics.get("SetTypeCmds", 0),
+                    max_hourly_metrics.get("KeyBasedCmds", 0),
+                    max_hourly_metrics.get("StringBasedCmds", 0),
+                    max_hourly_metrics.get("HashBasedCmds", 0),
+                    max_hourly_metrics.get("ListBasedCmds", 0),
+                    max_hourly_metrics.get("SetBasedCmds", 0),
+                    max_hourly_metrics.get("SortedSetBasedCmds", 0),
+                    max_hourly_metrics.get("ClusterBasedCmds", 0),
+                    max_hourly_metrics.get("EvalBasedCmds", 0),
+                    max_hourly_metrics.get("GeoSpatialBasedCmds", 0),
+                    max_hourly_metrics.get("HyperLogLogBasedCmds", 0),
+                    max_hourly_metrics.get("PubSubBasedCmds", 0),
+                    max_hourly_metrics.get("StreamBasedCmds", 0),
+                ]
+            )
+            row.append(max_throughput)
+
+            # Calculate average throughput (ops/sec) - sum of all avg command types
+            avg_throughput = sum(
+                [
+                    avg_hourly_metrics.get("GetTypeCmds", 0),
+                    avg_hourly_metrics.get("SetTypeCmds", 0),
+                    avg_hourly_metrics.get("KeyBasedCmds", 0),
+                    avg_hourly_metrics.get("StringBasedCmds", 0),
+                    avg_hourly_metrics.get("HashBasedCmds", 0),
+                    avg_hourly_metrics.get("ListBasedCmds", 0),
+                    avg_hourly_metrics.get("SetBasedCmds", 0),
+                    avg_hourly_metrics.get("SortedSetBasedCmds", 0),
+                ]
+            )
+            row.append(avg_throughput)
+
             row.append("%s" % instanceDetails["Engine"])
             row.append("")  # Empty qpf column
             ws.append(row)

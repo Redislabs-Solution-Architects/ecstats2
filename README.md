@@ -27,7 +27,7 @@ Download the repository
 Prepare and activate the virtual environment
 
 ```
-# python3 -m venv .env && source .env/bin/activate
+# python3 -m venv .venv && source .venv/bin/activate
 ```
 
 Install necessary libraries and dependencies
@@ -117,3 +117,45 @@ region_name           = us-east-1
 ```
 python ecstats.py -c config.ini
 ```
+
+## Enhancement Script (enhance_stats.py)
+
+The `enhance_stats.py` script adds additional columns to the ECstats output for deeper analysis:
+
+### Additional Columns Added:
+- **MemoryGB, vCPUs, NetworkPerf**: Instance specifications fetched from Vantage API (per node)
+- **AvgKeySize**: Calculated average key size in bytes
+
+### Setup:
+
+1. **Get a free Vantage API token:**
+   - Visit https://console.vantage.sh
+   - Sign up for a free account
+   - Navigate to Settings > API Tokens
+   - Create a new token and copy it
+
+2. **Create a `.env` file in the project root:**
+   ```bash
+   echo "VANTAGE_API_TOKEN=your_token_here" >> .env
+   ```
+
+   Note: The `.env` file contains your API token and should not be committed to git.
+
+3. **Run the enhancement script:**
+   ```bash
+   # Activate your virtual environment first
+   source .venv/bin/activate
+
+   # Run ecstats.py to generate the base output
+   python ecstats.py -c config.ini
+
+   # Enhance the output (specify the file created by ecstats.py)
+   python enhance_stats.py -i production-us-east-1.xlsx
+   ```
+
+### Notes:
+- Input file is required (specify the output from ecstats.py)
+- Output filename is auto-generated as `{input}-enhanced.xlsx` if not specified
+- Instance specs are cached during execution to minimize API calls
+- Adds per-node specifications only - no cluster aggregations
+- The original ecstats.py tool and output remain completely unchanged

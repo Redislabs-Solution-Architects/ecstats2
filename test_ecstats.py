@@ -532,9 +532,9 @@ class TestIntegration:
                     "Snapshots": []
                 }
 
-                # Mock CloudWatch responses
+                # Mock CloudWatch responses - support both Maximum and Average
                 mock_cloudwatch_client.get_metric_statistics.return_value = {
-                    "Datapoints": [{"Maximum": 100.0}]
+                    "Datapoints": [{"Maximum": 100.0, "Average": 50.0}]
                 }
                 mock_cloudwatch_client.get_metric_data.return_value = {
                     "MetricDataResults": [{"Values": [1.0]}]
