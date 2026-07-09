@@ -36,7 +36,7 @@ Install necessary libraries and dependencies
 # pip install -r requirements.txt
 ```
 
-Copy the example configuration file and update its contents to match your configuration. AWS User Access Key ID and Secret Access Key are needed to access your AWS ElastiCache instances. Multiple AWS Environments (e.g Production, Staging) and AWS Regions can be defined in this file and the script will process all the AWS ElastiCache instances that are defined as separate sections in the config.ini file.
+Copy the example configuration file and update its contents to match your configuration. If your AWS CLI is already authenticated, the script can use the default AWS credential chain with only `region_name` in each section. You can also set `profile_name` to use a specific AWS CLI profile, or provide AWS access keys when static credentials are required. Multiple AWS Environments (e.g Production, Staging) and AWS Regions can be defined in this file and the script will process all the AWS ElastiCache instances that are defined as separate sections in the config.ini file.
 
 ```
 # cp config.ini.example config.ini && vim config.ini
@@ -65,7 +65,7 @@ Download the repository
 # git clone https://github.com/Redislabs-Solution-Architects/ecstats2 && cd ecstats2
 ```
 
-Copy the example configuration file and update its contents to match your configuration. AWS User Access Key ID and Secret Access Key are needed to access your AWS ElastiCache instances. Multiple AWS Environments (e.g Production, Staging) and AWS Regions can be defined in this file and the script will process all the AWS ElastiCache instances that are defined as separate sections in the config.ini file.
+Copy the example configuration file and update its contents to match your configuration. If your AWS CLI is already authenticated, the script can use the default AWS credential chain with only `region_name` in each section. You can also set `profile_name` to use a specific AWS CLI profile, or provide AWS access keys when static credentials are required. Multiple AWS Environments (e.g Production, Staging) and AWS Regions can be defined in this file and the script will process all the AWS ElastiCache instances that are defined as separate sections in the config.ini file.
 
 ```
 # cp config.ini.example config.ini && vim config.ini
@@ -83,10 +83,9 @@ For example, output of this command is `/a/path/to/ecstats`. Use the below docke
 # docker run -v /a/path/to/ecstats:/app -t sumitshatwara/redis-ecstats python3 ecstats.py
 ```
 
-### 3. Running the Script Using EC2 Instance Profiles (No AWS Keys and Credentials Required on config.ini)
+### 3. Running the Script Using AWS CLI Credentials or EC2 Instance Profiles
 
-If you are running this script on an EC2 instance that has an attached IAM role, you can avoid specifying the AWS Access Key ID and Secret Access Key in the configuration file.\
-The script will automatically use the IAM role’s credentials to access AWS services like ElastiCache and CloudWatch.
+If your AWS CLI is already authenticated, or you are running this script on an EC2 instance that has an attached IAM role, you can avoid specifying the AWS Access Key ID and Secret Access Key in the configuration file. The script will automatically use boto3's default credential chain to access AWS services like ElastiCache and CloudWatch.
 
 #### Steps:
 
@@ -96,7 +95,7 @@ The script will automatically use the IAM role’s credentials to access AWS ser
 
 **Modify the config.ini file:**
 
-Simply omit the aws_access_key_id and aws_secret_access_key fields from the configuration file. You only need to specify the region_name for each environment.
+Simply omit the aws_access_key_id and aws_secret_access_key fields from the configuration file. You only need to specify the region_name for each environment. If you want a specific AWS CLI profile, add `profile_name`.
 
 _Example config.ini:_
 
@@ -106,6 +105,10 @@ region_name = us-east-1
 
 [production-us-west-1]
 region_name = us-west-1
+
+[production-with-profile]
+profile_name = default
+region_name  = us-west-2
 
 [staging-account-with-credentials]
 aws_access_key_id     = AKI<...>

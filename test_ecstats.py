@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import openpyxl
+from botocore.exceptions import ClientError
 
 # Import the module under test
 import ecstats
@@ -569,6 +570,127 @@ class TestIntegration:
                 aws_secret_access_key="test-secret",
                 region_name="us-west-1",
             )
+
+    def test_process_aws_account_uses_profile_from_config(self):
+        """Profile config should be passed into boto3.Session."""
+        config = configparser.ConfigParser()
+        config.add_section("production")
+        config.set("production", "profile_name", "test-profile")
+        config.set("production", "region_name", "us-west-1")
+
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "boto3.Session"
+        ) as mock_session, patch("ecstats.get_clusters_info") as mock_clusters, patch(
+            "ecstats.get_running_instances_metrics"
+        ) as mock_running, patch(
+            "ecstats.get_reserved_instances_info"
+        ) as mock_reserved, patch(
+            "ecstats.create_workbook"
+        ) as mock_workbook:
+            mock_session_instance = Mock()
+            mock_session.return_value = mock_session_instance
+
+            mock_sts_client = Mock()
+            mock_sts_client.get_caller_identity.return_value = {
+                "Arn": "arn:aws:sts::123456789012:assumed-role/TestRole/test-session"
+            }
+            mock_session_instance.client.return_value = mock_sts_client
+
+            mock_clusters.return_value = {
+                "elc_running_instances": {},
+                "elc_reserved_instances": {},
+                "snapshots": {},
+            }
+
+            workbook = Mock()
+            mock_workbook.return_value = workbook
+            mock_running.return_value = workbook
+            mock_reserved.return_value = workbook
+
+            ecstats.process_aws_account(config, "production", temp_dir)
+
+            mock_session.assert_called_once_with(
+                profile_name="test-profile",
+                region_name="us-west-1",
+            )
+
+    def test_process_aws_account_uses_default_credentials_when_only_region_set(self):
+        """Region-only config should use the default boto3 credential chain."""
+        config = configparser.ConfigParser()
+        config.add_section("production")
+        config.set("production", "region_name", "us-west-1")
+
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "boto3.Session"
+        ) as mock_session, patch("ecstats.get_clusters_info") as mock_clusters, patch(
+            "ecstats.get_running_instances_metrics"
+        ) as mock_running, patch(
+            "ecstats.get_reserved_instances_info"
+        ) as mock_reserved, patch(
+            "ecstats.create_workbook"
+        ) as mock_workbook:
+            mock_session_instance = Mock()
+            mock_session.return_value = mock_session_instance
+
+            mock_sts_client = Mock()
+            mock_sts_client.get_caller_identity.return_value = {
+                "Arn": "arn:aws:sts::123456789012:assumed-role/TestRole/test-session"
+            }
+            mock_session_instance.client.return_value = mock_sts_client
+
+            mock_clusters.return_value = {
+                "elc_running_instances": {},
+                "elc_reserved_instances": {},
+                "snapshots": {},
+            }
+
+            workbook = Mock()
+            mock_workbook.return_value = workbook
+            mock_running.return_value = workbook
+            mock_reserved.return_value = workbook
+
+            ecstats.process_aws_account(config, "production", temp_dir)
+
+            mock_session.assert_called_once_with(region_name="us-west-1")
+
+    def test_process_aws_account_rejects_partial_static_credentials(self):
+        """Only one static credential value should be rejected clearly."""
+        config = configparser.ConfigParser()
+        config.add_section("production")
+        config.set("production", "aws_access_key_id", "test-key")
+        config.set("production", "region_name", "us-west-1")
+
+        with tempfile.TemporaryDirectory() as temp_dir, pytest.raises(
+            ValueError, match="must set both aws_access_key_id"
+        ):
+            ecstats.process_aws_account(config, "production", temp_dir)
+
+    def test_process_aws_account_reports_invalid_credentials(self):
+        """Invalid AWS credentials should raise an actionable error."""
+        config = configparser.ConfigParser()
+        config.add_section("production")
+        config.set("production", "region_name", "us-west-1")
+
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "boto3.Session"
+        ) as mock_session:
+            mock_session_instance = Mock()
+            mock_session.return_value = mock_session_instance
+
+            mock_sts_client = Mock()
+            mock_sts_client.get_caller_identity.side_effect = ClientError(
+                {
+                    "Error": {
+                        "Code": "InvalidClientTokenId",
+                        "Message": "The security token included in the request is invalid.",
+                    }
+                },
+                "GetCallerIdentity",
+            )
+            mock_session_instance.client.return_value = mock_sts_client
+
+            with pytest.raises(RuntimeError, match="remove stale"):
+                ecstats.process_aws_account(config, "production", temp_dir)
 
     def test_end_to_end_workflow_mock(self):
         """Test end-to-end workflow with comprehensive mocking."""

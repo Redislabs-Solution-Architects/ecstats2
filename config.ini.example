@@ -1,14 +1,16 @@
 [production]
-aws_access_key_id     = KEY_1
-aws_secret_access_key = SECRET_1
 region_name           = us-west-1
 ; Optional
+;profile_name          = default
+;aws_access_key_id     = KEY_1
+;aws_secret_access_key = SECRET_1
 ;aws_session_token     = SESSION_TOKEN_1
 
 
 [staging]
-aws_access_key_id     = KEY_2
-aws_secret_access_key = SECRET_2
 region_name           = us-east-1
 ; Optional
+;profile_name          = staging
+;aws_access_key_id     = KEY_2
+;aws_secret_access_key = SECRET_2
 ;aws_session_token     = SESSION_TOKEN_2
