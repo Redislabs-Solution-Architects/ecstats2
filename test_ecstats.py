@@ -107,6 +107,7 @@ class TestClusterInfo:
                 "CacheClusterId": "test-cluster-001",
                 "CacheClusterStatus": "available",
                 "Engine": "redis",
+                "EngineVersion": "7.1",
                 "CacheNodeType": "cache.t3.micro",
                 "CacheNodes": [{"CacheNodeId": "0001"}],
             }
@@ -126,6 +127,10 @@ class TestClusterInfo:
         assert isinstance(result["elc_running_instances"], dict)
         assert isinstance(result["elc_reserved_instances"], dict)
         assert isinstance(result["snapshots"], dict)
+        assert (
+            result["elc_running_instances"]["test-cluster-001"]["EngineVersion"]
+            == "7.1"
+        )
 
     @patch("boto3.Session")
     def test_get_clusters_info_redis_engine_only(self, mock_session):
@@ -141,6 +146,7 @@ class TestClusterInfo:
                 "CacheClusterId": "redis-cluster-001",
                 "CacheClusterStatus": "available",
                 "Engine": "redis",
+                "EngineVersion": "7.0",
                 "CacheNodeType": "cache.r6g.large",
                 "CacheNodes": [
                     {"CacheNodeId": "0001"},
@@ -151,6 +157,7 @@ class TestClusterInfo:
                 "CacheClusterId": "redis-cluster-002",
                 "CacheClusterStatus": "available",
                 "Engine": "redis",
+                "EngineVersion": "6.2",
                 "CacheNodeType": "cache.t3.medium",
                 "CacheNodes": [{"CacheNodeId": "0001"}],
             },
@@ -184,6 +191,7 @@ class TestClusterInfo:
                 "CacheClusterId": "valkey-cluster-001",
                 "CacheClusterStatus": "available",
                 "Engine": "valkey",
+                "EngineVersion": "8.0",
                 "CacheNodeType": "cache.r7g.xlarge",
                 "CacheNodes": [{"CacheNodeId": "0001"}],
             },
@@ -191,6 +199,7 @@ class TestClusterInfo:
                 "CacheClusterId": "valkey-cluster-002",
                 "CacheClusterStatus": "available",
                 "Engine": "valkey",
+                "EngineVersion": "7.2",
                 "CacheNodeType": "cache.m6g.large",
                 "CacheNodes": [
                     {"CacheNodeId": "0001"},
@@ -213,6 +222,7 @@ class TestClusterInfo:
         # Verify Valkey engine is preserved
         for cluster_info in result["elc_running_instances"].values():
             assert cluster_info["Engine"] == "valkey"
+            assert cluster_info["EngineVersion"] in ["8.0", "7.2"]
 
     @patch("boto3.Session")
     def test_get_clusters_info_filters_redis_valkey_only(self, mock_session):
@@ -471,7 +481,43 @@ class TestWorkbookOperations:
 
             # Should have metrics from both weekly and hourly
             assert "Engine" in headers
+            assert "EngineVersion" in headers
             assert "QPF" in headers
+
+    def test_get_running_instances_metrics_includes_engine_version(self):
+        """Test running instance rows include engine family and version."""
+        wb = ecstats.create_workbook(".", "test-section", "us-west-1")
+        clusters_info = {
+            "elc_running_instances": {
+                "test-cluster-001": {
+                    "CacheClusterId": "test-cluster-001",
+                    "CacheClusterStatus": "available",
+                    "Engine": "valkey",
+                    "EngineVersion": "8.0",
+                    "CacheNodeType": "cache.t3.micro",
+                    "PreferredAvailabilityZone": "us-west-1a",
+                    "CacheNodes": [{"CacheNodeId": "0001"}],
+                }
+            },
+            "elc_reserved_instances": {},
+            "snapshots": {},
+        }
+        mock_session = Mock()
+        mock_cloudwatch = Mock()
+        mock_session.client.return_value = mock_cloudwatch
+
+        with patch("ecstats.get_metric_curr", return_value=1.0), patch(
+            "ecstats.get_metric", return_value=[60.0]
+        ):
+            wb = ecstats.get_running_instances_metrics(wb, clusters_info, mock_session)
+
+        ws = wb[ecstats.RUNNING_INSTANCES_WORKSHEET_NAME]
+        headers = [cell.value for cell in ws[1]]
+        row = [cell.value for cell in ws[2]]
+
+        assert row[headers.index("Engine")] == "valkey"
+        assert row[headers.index("EngineVersion")] == "8.0"
+        assert row[headers.index("QPF")] == ""
 
 
 class TestIntegration:
@@ -621,6 +667,7 @@ class TestIntegration:
                         "CacheClusterId": "test-cluster-001",
                         "CacheClusterStatus": "available",
                         "Engine": "redis",
+                        "EngineVersion": "7.1",
                         "CacheNodeType": "cache.t3.micro",
                         "PreferredAvailabilityZone": "us-west-1a",
                         "CacheNodes": [{"CacheNodeId": "0001"}],
@@ -653,6 +700,11 @@ class TestIntegration:
                 wb = openpyxl.load_workbook(expected_output)
                 assert ecstats.RUNNING_INSTANCES_WORKSHEET_NAME in wb.sheetnames
                 assert ecstats.RESERVED_INSTANCES_WORKSHEET_NAME in wb.sheetnames
+                ws = wb[ecstats.RUNNING_INSTANCES_WORKSHEET_NAME]
+                headers = [cell.value for cell in ws[1]]
+                row = [cell.value for cell in ws[2]]
+                assert row[headers.index("Engine")] == "redis"
+                assert row[headers.index("EngineVersion")] == "7.1"
 
 
 if __name__ == "__main__":

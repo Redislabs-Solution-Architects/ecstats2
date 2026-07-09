@@ -372,6 +372,7 @@ def create_workbook(outDir, section, region_name):
     for metric, _, _ in get_max_metrics_hourly():
         df_columns.append(metric)
     df_columns.append("Engine")
+    df_columns.append("EngineVersion")
     df_columns.append("QPF")
     ws.append(df_columns)
 
@@ -451,6 +452,7 @@ def get_running_instances_metrics(wb, clusters_info, session):
                 # actual operation per second we then need to divide by 3600.
                 row.append(round(data_point / 60))
             row.append("%s" % instanceDetails["Engine"])
+            row.append("%s" % instanceDetails.get("EngineVersion", ""))
             row.append("")  # Empty qpf column
             ws.append(row)
             row = []
