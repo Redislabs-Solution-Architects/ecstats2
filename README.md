@@ -8,6 +8,26 @@ This script by no means will affect the performance and the data stored in the R
 
 The script will need at minimum CloudwatchReadOnlyAccess & AmazonElastiCacheReadOnlyAccess privilleges for extracting the information.
 
+## Redis upgrade readiness
+
+The generated workbook includes an `UpgradeReadiness` worksheet. This tab summarizes signals that can block or complicate a move to a newer Redis major version, including:
+
+- Engine versions below the target Redis major version.
+- Command-family traffic that may include Redis commands deprecated in Redis 8, such as `HMSET`, `SETEX`, `SETNX`, `GETSET`, legacy geospatial range commands, legacy sorted-set range commands, `BRPOPLPUSH`, and older cluster commands.
+- Auth/ACL failures, active traffic management, node/network allowance pressure, high CPU or memory pressure, evictions, swap usage, and missing automatic snapshot retention.
+
+ECstats still only reads ElastiCache and CloudWatch APIs. CloudWatch exposes aggregate command-family metrics, not exact command names, so deprecated-command findings are intentionally marked as potential usage that should be confirmed from application code, Redis commandstats, slow logs, or client telemetry.
+
+The default target is Redis major version `8`. You can tune the readiness thresholds with environment variables:
+
+```
+TARGET_REDIS_MAJOR_VERSION=8
+HIGH_CPU_THRESHOLD_PERCENT=90
+WARN_CPU_THRESHOLD_PERCENT=70
+HIGH_MEMORY_THRESHOLD_PERCENT=90
+WARN_MEMORY_THRESHOLD_PERCENT=75
+```
+
 
 ## Installation
 

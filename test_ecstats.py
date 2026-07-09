@@ -87,6 +87,14 @@ class TestUtilityFunctions:
         days_until_expiry = ecstats.calc_expiry_time(past_date)
         assert days_until_expiry < 0
 
+    def test_parse_major_version(self):
+        """Test Redis/Valkey major version parsing."""
+        assert ecstats.parse_major_version("7.1") == 7
+        assert ecstats.parse_major_version("8.0.1") == 8
+        assert ecstats.parse_major_version("") is None
+        assert ecstats.parse_major_version(None) is None
+        assert ecstats.parse_major_version("unknown") is None
+
 
 class TestClusterInfo:
     """Test cluster information retrieval."""
@@ -123,9 +131,11 @@ class TestClusterInfo:
 
         assert "elc_running_instances" in result
         assert "elc_reserved_instances" in result
+        assert "elc_serverless_caches" in result
         assert "snapshots" in result
         assert isinstance(result["elc_running_instances"], dict)
         assert isinstance(result["elc_reserved_instances"], dict)
+        assert isinstance(result["elc_serverless_caches"], dict)
         assert isinstance(result["snapshots"], dict)
         assert (
             result["elc_running_instances"]["test-cluster-001"]["EngineVersion"]
@@ -394,6 +404,41 @@ class TestClusterInfo:
         assert isinstance(redis_ri["expiry_time"], int)
         assert isinstance(valkey_ri["expiry_time"], int)
 
+    @patch("boto3.Session")
+    def test_get_clusters_info_with_serverless_cache(self, mock_session):
+        """Test processing of available serverless Redis caches."""
+        mock_session_instance = Mock()
+        mock_session.return_value = mock_session_instance
+
+        mock_elasticache_client = Mock()
+        mock_session_instance.client.return_value = mock_elasticache_client
+        mock_elasticache_client.get_paginator.side_effect = (
+            create_paginator_side_effect()
+        )
+        mock_elasticache_client.describe_snapshots.return_value = {"Snapshots": []}
+        mock_elasticache_client.describe_serverless_caches.return_value = {
+            "ServerlessCaches": [
+                {
+                    "ServerlessCacheName": "serverless-redis",
+                    "Status": "available",
+                    "Engine": "redis",
+                    "FullEngineVersion": "7.1",
+                    "SnapshotRetentionLimit": 0,
+                },
+                {
+                    "ServerlessCacheName": "serverless-creating",
+                    "Status": "creating",
+                    "Engine": "redis",
+                },
+            ]
+        }
+
+        result = ecstats.get_clusters_info(mock_session_instance)
+
+        assert len(result["elc_serverless_caches"]) == 1
+        assert "serverless-redis" in result["elc_serverless_caches"]
+        assert "serverless-creating" not in result["elc_serverless_caches"]
+
 
 class TestMetricRetrieval:
     """Test metric retrieval functions."""
@@ -448,6 +493,27 @@ class TestMetricRetrieval:
 
         assert result == -1
 
+    @patch("datetime.date")
+    def test_get_serverless_metric(self, mock_date):
+        """Test serverless CloudWatch metric retrieval uses clusterId dimension."""
+        mock_today = datetime.date(2023, 1, 8)
+        mock_date.today.return_value = mock_today
+
+        mock_cloudwatch = Mock()
+        mock_cloudwatch.get_metric_statistics.return_value = {
+            "Datapoints": [{"Maximum": 42.0}]
+        }
+
+        result = ecstats.get_serverless_metric(
+            mock_cloudwatch, "serverless-redis", "CurrItems", "Maximum", 3600
+        )
+
+        assert result == [42.0]
+        call_args = mock_cloudwatch.get_metric_statistics.call_args
+        assert call_args[1]["Dimensions"] == [
+            {"Name": "clusterId", "Value": "serverless-redis"}
+        ]
+
 
 class TestWorkbookOperations:
     """Test Excel workbook operations."""
@@ -458,9 +524,10 @@ class TestWorkbookOperations:
             wb = ecstats.create_workbook(temp_dir, "test-section", "us-west-1")
 
             assert isinstance(wb, openpyxl.Workbook)
-            assert len(wb.sheetnames) == 2
+            assert len(wb.sheetnames) == 3
             assert ecstats.RUNNING_INSTANCES_WORKSHEET_NAME in wb.sheetnames
             assert ecstats.RESERVED_INSTANCES_WORKSHEET_NAME in wb.sheetnames
+            assert ecstats.UPGRADE_READINESS_WORKSHEET_NAME in wb.sheetnames
 
             # Check running instances worksheet headers
             ws = wb[ecstats.RUNNING_INSTANCES_WORKSHEET_NAME]
@@ -483,6 +550,22 @@ class TestWorkbookOperations:
             assert "Engine" in headers
             assert "EngineVersion" in headers
             assert "QPF" in headers
+
+            upgrade_ws = wb[ecstats.UPGRADE_READINESS_WORKSHEET_NAME]
+            upgrade_headers = [cell.value for cell in upgrade_ws[1]]
+            assert upgrade_headers == [
+                "Source",
+                "ClusterId",
+                "NodeId",
+                "NodeRole",
+                "Engine",
+                "EngineVersion",
+                "Severity",
+                "Category",
+                "Signal",
+                "ObservedValue",
+                "Recommendation",
+            ]
 
     def test_get_running_instances_metrics_includes_engine_version(self):
         """Test running instance rows include engine family and version."""
@@ -518,6 +601,126 @@ class TestWorkbookOperations:
         assert row[headers.index("Engine")] == "valkey"
         assert row[headers.index("EngineVersion")] == "8.0"
         assert row[headers.index("QPF")] == ""
+
+    def test_get_running_instances_metrics_adds_upgrade_findings(self):
+        """Test readiness sheet flags Redis upgrade roadblocks and deprecated command families."""
+        wb = ecstats.create_workbook(".", "test-section", "us-west-1")
+        clusters_info = {
+            "elc_running_instances": {
+                "test-cluster-001": {
+                    "CacheClusterId": "test-cluster-001",
+                    "CacheClusterStatus": "available",
+                    "Engine": "redis",
+                    "EngineVersion": "6.2",
+                    "CacheNodeType": "cache.t3.micro",
+                    "PreferredAvailabilityZone": "us-west-1a",
+                    "CacheNodes": [{"CacheNodeId": "0001"}],
+                }
+            },
+            "elc_reserved_instances": {},
+            "snapshots": {"test-cluster-001": 7},
+        }
+        mock_session = Mock()
+        mock_cloudwatch = Mock()
+        mock_session.client.return_value = mock_cloudwatch
+
+        def metric_side_effect(_cloud_watch, _cluster_id, _node, metric, *_args):
+            if metric == "StringBasedCmds":
+                return [600.0]
+            if metric == "AuthenticationFailures":
+                return [1.0]
+            if metric == "EngineCPUUtilization":
+                return [95.0]
+            return [0.0]
+
+        with patch("ecstats.get_metric_curr", return_value=1.0), patch(
+            "ecstats.get_metric", side_effect=metric_side_effect
+        ):
+            wb = ecstats.get_running_instances_metrics(wb, clusters_info, mock_session)
+
+        ws = wb[ecstats.UPGRADE_READINESS_WORKSHEET_NAME]
+        headers = [cell.value for cell in ws[1]]
+        rows = [[cell.value for cell in row] for row in ws.iter_rows(min_row=2)]
+
+        signals = [row[headers.index("Signal")] for row in rows]
+        categories = [row[headers.index("Category")] for row in rows]
+
+        assert "EngineVersion" in signals
+        assert "AuthenticationFailures" in signals
+        assert "StringBasedCmds" in signals
+        assert "EngineCPUUtilization" in signals
+        assert "PotentialDeprecatedCommands" in categories
+
+        deprecated_row = rows[signals.index("StringBasedCmds")]
+        recommendation = deprecated_row[headers.index("Recommendation")]
+        assert "SETEX -> SET EX" in recommendation
+
+    def test_append_upgrade_readiness_issues_records_no_findings(self):
+        """Test clean nodes get an explicit no-roadblocks row."""
+        wb = ecstats.create_workbook(".", "test-section", "us-west-1")
+        ws = wb[ecstats.UPGRADE_READINESS_WORKSHEET_NAME]
+        instance_details = {
+            "Engine": "redis",
+            "EngineVersion": "%s.0" % ecstats.TARGET_REDIS_MAJOR_VERSION,
+        }
+
+        ecstats.append_upgrade_readiness_issues(
+            ws,
+            "test-cluster",
+            "test-node",
+            "Master",
+            instance_details,
+            7,
+            {},
+        )
+
+        headers = [cell.value for cell in ws[1]]
+        row = [cell.value for cell in ws[2]]
+
+        assert row[headers.index("Severity")] == "Info"
+        assert row[headers.index("Signal")] == "NoRoadblocksDetected"
+
+    def test_get_running_instances_metrics_includes_serverless_cache(self):
+        """Test serverless cache rows are included in workbook output."""
+        wb = ecstats.create_workbook(".", "test-section", "us-west-2")
+        clusters_info = {
+            "elc_running_instances": {},
+            "elc_reserved_instances": {},
+            "elc_serverless_caches": {
+                "serverless-redis": {
+                    "ServerlessCacheName": "serverless-redis",
+                    "Status": "available",
+                    "Engine": "redis",
+                    "FullEngineVersion": "7.1",
+                    "SnapshotRetentionLimit": 0,
+                    "ARN": "arn:aws:elasticache:us-west-2:123456789012:serverlesscache:serverless-redis",
+                }
+            },
+            "snapshots": {},
+        }
+        mock_session = Mock()
+        mock_cloudwatch = Mock()
+        mock_session.client.return_value = mock_cloudwatch
+
+        with patch("ecstats.get_serverless_metric", return_value=[12.0]):
+            wb = ecstats.get_running_instances_metrics(wb, clusters_info, mock_session)
+
+        ws = wb[ecstats.RUNNING_INSTANCES_WORKSHEET_NAME]
+        headers = [cell.value for cell in ws[1]]
+        row = [cell.value for cell in ws[2]]
+
+        assert row[headers.index("Source")] == "EC-Serverless"
+        assert row[headers.index("ClusterId")] == "serverless-redis"
+        assert row[headers.index("NodeRole")] == "Serverless"
+        assert row[headers.index("NodeType")] == "serverless"
+        assert row[headers.index("Region")] == "us-west-2"
+        assert row[headers.index("CurrItems")] == 12.0
+        assert row[headers.index("EngineVersion")] == "7.1"
+
+        upgrade_ws = wb[ecstats.UPGRADE_READINESS_WORKSHEET_NAME]
+        upgrade_headers = [cell.value for cell in upgrade_ws[1]]
+        upgrade_row = [cell.value for cell in upgrade_ws[2]]
+        assert upgrade_row[upgrade_headers.index("Source")] == "EC-Serverless"
 
 
 class TestIntegration:
