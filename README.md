@@ -20,38 +20,38 @@ There are couple of ways to run the script which are mentioned as below:
 
 Download the repository
 
-```
-# git clone https://github.com/Redislabs-Solution-Architects/ecstats2 && cd ecstats2
+```bash
+git clone https://github.com/Redislabs-Solution-Architects/ecstats2 && cd ecstats2
 ```
 
 Prepare and activate the virtual environment
 
-```
-# python3 -m venv .env && source .env/bin/activate
+```bash
+python3 -m venv .env && source .env/bin/activate
 ```
 
 Install necessary libraries and dependencies
 
-```
-# pip install -r requirements.txt
+```bash
+pip install -r requirements.txt
 ```
 
 Copy the example configuration file and update its contents to match your configuration. AWS User Access Key ID and Secret Access Key are needed to access your AWS ElastiCache instances. Multiple AWS Environments (e.g Production, Staging) and AWS Regions can be defined in this file and the script will process all the AWS ElastiCache instances that are defined as separate sections in the config.ini file.
 
-```
-# cp config.ini.example config.ini && vim config.ini
+```bash
+cp config.ini.example config.ini && vim config.ini
 ```
 
 Execute below python command to run the script. Use -c option with configuration file if the file name is different from config.ini
 
-```
-# python ecstats.py -c config.ini
+```bash
+python ecstats.py -c config.ini
 ```
 
 When finished do not forget to deactivate the virtual environment
 
-```
-# deactivate
+```bash
+deactivate
 ```
 
 ### 2. Running the script from Docker image
@@ -61,26 +61,26 @@ When finished do not forget to deactivate the virtual environment
 
 Download the repository
 
-```
-# git clone https://github.com/Redislabs-Solution-Architects/ecstats2 && cd ecstats2
+```bash
+git clone https://github.com/Redislabs-Solution-Architects/ecstats2 && cd ecstats2
 ```
 
 Copy the example configuration file and update its contents to match your configuration. AWS User Access Key ID and Secret Access Key are needed to access your AWS ElastiCache instances. Multiple AWS Environments (e.g Production, Staging) and AWS Regions can be defined in this file and the script will process all the AWS ElastiCache instances that are defined as separate sections in the config.ini file.
 
-```
-# cp config.ini.example config.ini && vim config.ini
+```bash
+cp config.ini.example config.ini && vim config.ini
 ```
 
 
 Execute the script using `docker run` command. Use -c option with configuration file if the file name is different from config.ini
 
-```
-# pwd
+```bash
+pwd
 ```
 For example, output of this command is `/a/path/to/ecstats`. Use the below docker command to run the script
 
-```
-# docker run -v /a/path/to/ecstats:/app -t sumitshatwara/redis-ecstats python3 ecstats.py
+```bash
+docker run -v /a/path/to/ecstats:/app -t sumitshatwara/redis-ecstats python3 ecstats.py
 ```
 
 ### 3. Running the Script Using EC2 Instance Profiles (No AWS Keys and Credentials Required on config.ini)
@@ -114,6 +114,6 @@ region_name           = us-east-1
 ```
 
 **Run the script normally:**
-```
+```bash
 python ecstats.py -c config.ini
 ```
