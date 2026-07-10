@@ -533,7 +533,7 @@ def main():
         metavar="PATH",
     )
 
-    (options, _) = parser.parse_args()
+    options, _ = parser.parse_args()
 
     if not os.path.isdir(options.outDir):
         os.makedirs(options.outDir)
