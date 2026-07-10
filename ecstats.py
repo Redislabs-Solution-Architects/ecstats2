@@ -5,6 +5,7 @@ import configparser
 import optparse
 import boto3
 import openpyxl
+from botocore.exceptions import ClientError
 
 # Metric Collection Period (in days)
 METRIC_COLLECTION_PERIOD_DAYS = int(
@@ -17,6 +18,14 @@ SECONDS_IN_DAY = 24 * SECONDS_IN_HOUR
 
 RUNNING_INSTANCES_WORKSHEET_NAME = "ClusterData"
 RESERVED_INSTANCES_WORKSHEET_NAME = "ReservedData"
+
+
+def get_optional_config_value(config, section, option):
+    if not config.has_option(section, option):
+        return None
+
+    value = config.get(section, option).strip()
+    return value or None
 
 
 def get_max_metrics_hourly():
@@ -472,30 +481,47 @@ def get_reserved_instances_info(wb, clusters_info):
 
 
 def process_aws_account(config, section, outDir):
-    # Check if credentials are provided in the config file
-    if config.has_option(section, "aws_access_key_id") and config.has_option(
-        section, "aws_secret_access_key"
-    ):
-        aws_access_key_id = config.get(section, "aws_access_key_id")
-        aws_secret_access_key = config.get(section, "aws_secret_access_key")
-        region_name = config.get(section, "region_name")
+    region_name = config.get(section, "region_name")
+    session_kwargs = {"region_name": region_name}
 
-        if config.has_option(section, "aws_session_token"):
-            aws_session_token = config.get(section, "aws_session_token")
-        else:
-            aws_session_token = None
+    aws_access_key_id = get_optional_config_value(config, section, "aws_access_key_id")
+    aws_secret_access_key = get_optional_config_value(
+        config, section, "aws_secret_access_key"
+    )
+    aws_session_token = get_optional_config_value(config, section, "aws_session_token")
+    profile_name = get_optional_config_value(config, section, "profile_name")
 
-        # Create session with credentials
-        session = boto3.Session(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token,
-            region_name=region_name,
+    if bool(aws_access_key_id) != bool(aws_secret_access_key):
+        raise ValueError(
+            f"Section [{section}] must set both aws_access_key_id and "
+            "aws_secret_access_key, or omit both to use profile/default AWS "
+            "credentials."
         )
-    else:
-        # No credentials in config file, rely on instance profile credentials
-        region_name = config.get(section, "region_name")
-        session = boto3.Session(region_name=region_name)
+
+    # Prefer explicit credentials from config.ini when present.
+    if aws_access_key_id and aws_secret_access_key:
+        session_kwargs["aws_access_key_id"] = aws_access_key_id
+        session_kwargs["aws_secret_access_key"] = aws_secret_access_key
+        if aws_session_token:
+            session_kwargs["aws_session_token"] = aws_session_token
+    elif profile_name:
+        session_kwargs["profile_name"] = profile_name
+
+    session = boto3.Session(**session_kwargs)
+
+    try:
+        sts = session.client("sts")
+        identity = sts.get_caller_identity()
+    except ClientError as err:
+        raise RuntimeError(
+            f"Unable to validate AWS credentials for section [{section}] in "
+            f"region {region_name}. If `aws sts get-caller-identity` works in "
+            "your shell but ecstats fails, remove stale "
+            "aws_access_key_id/aws_secret_access_key values from config.ini, "
+            "or set profile_name to the AWS CLI profile you want to use. "
+            f"Original error: {err}"
+        ) from err
+    print(f"Using AWS identity: {identity['Arn']}")
 
     print(f"Requesting information for the {section} nodes")
     clusters_info = get_clusters_info(session)
