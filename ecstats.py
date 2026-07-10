@@ -17,6 +17,71 @@ SECONDS_IN_DAY = 24 * SECONDS_IN_HOUR
 
 RUNNING_INSTANCES_WORKSHEET_NAME = "ClusterData"
 RESERVED_INSTANCES_WORKSHEET_NAME = "ReservedData"
+UPGRADE_READINESS_WORKSHEET_NAME = "UpgradeReadiness"
+
+TARGET_REDIS_MAJOR_VERSION = int(os.environ.get("TARGET_REDIS_MAJOR_VERSION") or 8)
+
+HIGH_CPU_THRESHOLD_PERCENT = int(os.environ.get("HIGH_CPU_THRESHOLD_PERCENT") or 90)
+WARN_CPU_THRESHOLD_PERCENT = int(os.environ.get("WARN_CPU_THRESHOLD_PERCENT") or 70)
+HIGH_MEMORY_THRESHOLD_PERCENT = int(
+    os.environ.get("HIGH_MEMORY_THRESHOLD_PERCENT") or 90
+)
+WARN_MEMORY_THRESHOLD_PERCENT = int(
+    os.environ.get("WARN_MEMORY_THRESHOLD_PERCENT") or 75
+)
+
+DEPRECATED_COMMAND_GROUPS = {
+    "ClusterBasedCmds": [
+        "CLUSTER SLAVES -> CLUSTER REPLICAS",
+        "CLUSTER SLOTS -> CLUSTER SHARDS",
+    ],
+    "GeoSpatialBasedCmds": [
+        "GEORADIUS -> GEOSEARCH/GEOSEARCHSTORE BYRADIUS",
+        "GEORADIUS_RO -> GEOSEARCH BYRADIUS",
+        "GEORADIUSBYMEMBER -> GEOSEARCH/GEOSEARCHSTORE FROMMEMBER BYRADIUS",
+        "GEORADIUSBYMEMBER_RO -> GEOSEARCH FROMMEMBER BYRADIUS",
+    ],
+    "HashBasedCmds": ["HMSET -> HSET with multiple field-value pairs"],
+    "ListBasedCmds": ["BRPOPLPUSH -> BLMOVE RIGHT LEFT"],
+    "StringBasedCmds": [
+        "GETSET -> SET GET",
+        "SETEX -> SET EX",
+        "SETNX -> SET NX",
+        "SUBSTR -> GETRANGE",
+    ],
+    "SortedSetBasedCmds": [
+        "ZRANGEBYLEX -> ZRANGE BYLEX",
+        "ZRANGEBYSCORE -> ZRANGE BYSCORE",
+        "ZREVRANGE -> ZRANGE REV",
+        "ZREVRANGEBYLEX -> ZRANGE REV BYLEX",
+        "ZREVRANGEBYSCORE -> ZRANGE REV BYSCORE",
+    ],
+}
+
+AUTHORIZATION_FAILURE_METRICS = [
+    "AuthenticationFailures",
+    "ChannelAuthorizationFailures",
+    "CommandAuthorizationFailures",
+    "KeyAuthorizationFailures",
+]
+
+ALLOWANCE_EXCEEDED_METRICS = [
+    "NetworkBandwidthInAllowanceExceeded",
+    "NetworkBandwidthOutAllowanceExceeded",
+    "NetworkPacketsPerSecondAllowanceExceeded",
+]
+
+SERVERLESS_SUPPORTED_METRICS = {
+    "BytesUsedForCache",
+    "CacheHits",
+    "CacheHitRate",
+    "CacheMisses",
+    "ChannelAuthorizationFailures",
+    "CommandAuthorizationFailures",
+    "CurrItems",
+    "Evictions",
+    "KeyAuthorizationFailures",
+}
 
 
 def get_max_metrics_hourly():
@@ -203,6 +268,244 @@ def calc_expiry_time(expiry):
     return (expiry.replace(tzinfo=None) - datetime.datetime.utcnow()).days
 
 
+def parse_major_version(version):
+    if version is None:
+        return None
+
+    version_string = str(version).strip()
+    if not version_string:
+        return None
+
+    digits = []
+    for char in version_string:
+        if char.isdigit():
+            digits.append(char)
+        elif digits:
+            break
+        else:
+            return None
+
+    if not digits:
+        return None
+    return int("".join(digits))
+
+
+def get_region_from_arn(arn):
+    if not arn:
+        return ""
+    parts = arn.split(":")
+    if len(parts) > 3:
+        return parts[3]
+    return ""
+
+
+def append_upgrade_readiness_issue(
+    worksheet,
+    cluster_id,
+    node_id,
+    node_role,
+    instance_details,
+    severity,
+    category,
+    signal,
+    observed_value,
+    recommendation,
+    source="EC",
+):
+    worksheet.append(
+        [
+            source,
+            cluster_id,
+            node_id,
+            node_role,
+            instance_details["Engine"],
+            instance_details.get("EngineVersion", ""),
+            severity,
+            category,
+            signal,
+            observed_value,
+            recommendation,
+        ]
+    )
+
+
+def append_upgrade_readiness_issues(
+    worksheet,
+    cluster_id,
+    node_id,
+    node_role,
+    instance_details,
+    snapshot_retention_limit,
+    metric_values,
+    source="EC",
+):
+    engine = instance_details["Engine"]
+    engine_version = instance_details.get("EngineVersion", "")
+    major_version = parse_major_version(engine_version)
+    issue_count = 0
+
+    def add_issue(severity, category, signal, observed_value, recommendation):
+        nonlocal issue_count
+        append_upgrade_readiness_issue(
+            worksheet,
+            cluster_id,
+            node_id,
+            node_role,
+            instance_details,
+            severity,
+            category,
+            signal,
+            observed_value,
+            recommendation,
+            source=source,
+        )
+        issue_count += 1
+
+    if engine == "redis":
+        if major_version is None:
+            add_issue(
+                "High",
+                "EngineVersion",
+                "EngineVersion",
+                engine_version,
+                "Confirm the current engine version before planning a Redis major-version upgrade.",
+            )
+        elif major_version < TARGET_REDIS_MAJOR_VERSION:
+            add_issue(
+                "High",
+                "EngineVersion",
+                "EngineVersion",
+                engine_version,
+                "Plan and test an engine upgrade path to Redis major version %s or later."
+                % TARGET_REDIS_MAJOR_VERSION,
+            )
+    elif engine == "valkey":
+        add_issue(
+            "Info",
+            "EngineFamily",
+            "Engine",
+            engine,
+            "This node is Valkey; validate client and command compatibility against the Redis target separately.",
+        )
+
+    if snapshot_retention_limit <= 0:
+        add_issue(
+            "Medium",
+            "Recovery",
+            "SnapshotRetentionLimit",
+            snapshot_retention_limit,
+            "Enable automatic snapshots or confirm an alternate rollback plan before upgrading.",
+        )
+
+    for metric in AUTHORIZATION_FAILURE_METRICS:
+        value = metric_values.get(metric, 0)
+        if value > 0:
+            add_issue(
+                "High",
+                "Security",
+                metric,
+                value,
+                "Resolve ACL/auth failures before upgrading so client breakage is not confused with engine changes.",
+            )
+
+    for metric, deprecated_commands in DEPRECATED_COMMAND_GROUPS.items():
+        value = metric_values.get(metric, 0)
+        if value > 0:
+            add_issue(
+                "Medium",
+                "PotentialDeprecatedCommands",
+                metric,
+                value,
+                "CloudWatch saw traffic in a command family that includes deprecated Redis commands; review exact usage for: %s."
+                % "; ".join(deprecated_commands),
+            )
+
+    engine_cpu = metric_values.get("EngineCPUUtilization", 0)
+    if engine_cpu >= HIGH_CPU_THRESHOLD_PERCENT:
+        add_issue(
+            "High",
+            "Capacity",
+            "EngineCPUUtilization",
+            engine_cpu,
+            "Reduce CPU pressure or scale before upgrading; high CPU can make upgrade validation noisy.",
+        )
+    elif engine_cpu >= WARN_CPU_THRESHOLD_PERCENT:
+        add_issue(
+            "Medium",
+            "Capacity",
+            "EngineCPUUtilization",
+            engine_cpu,
+            "Review CPU headroom before upgrade testing.",
+        )
+
+    memory_usage = metric_values.get("DatabaseMemoryUsagePercentage", 0)
+    if memory_usage >= HIGH_MEMORY_THRESHOLD_PERCENT:
+        add_issue(
+            "High",
+            "Capacity",
+            "DatabaseMemoryUsagePercentage",
+            memory_usage,
+            "Lower memory pressure or scale before upgrading.",
+        )
+    elif memory_usage >= WARN_MEMORY_THRESHOLD_PERCENT:
+        add_issue(
+            "Medium",
+            "Capacity",
+            "DatabaseMemoryUsagePercentage",
+            memory_usage,
+            "Review memory headroom before upgrade testing.",
+        )
+
+    for metric in ALLOWANCE_EXCEEDED_METRICS:
+        value = metric_values.get(metric, 0)
+        if value > 0:
+            add_issue(
+                "Medium",
+                "Capacity",
+                metric,
+                value,
+                "Investigate node/network limits before upgrading.",
+            )
+
+    if metric_values.get("TrafficManagementActive", 0) > 0:
+        add_issue(
+            "High",
+            "Capacity",
+            "TrafficManagementActive",
+            metric_values.get("TrafficManagementActive", 0),
+            "Resolve active traffic management before upgrading.",
+        )
+
+    if metric_values.get("Evictions", 0) > 0:
+        add_issue(
+            "Medium",
+            "DataRisk",
+            "Evictions",
+            metric_values.get("Evictions", 0),
+            "Review eviction pressure and maxmemory policy before upgrading.",
+        )
+
+    if metric_values.get("SwapUsage", 0) > 0:
+        add_issue(
+            "Medium",
+            "Capacity",
+            "SwapUsage",
+            metric_values.get("SwapUsage", 0),
+            "Reduce swap usage before upgrading.",
+        )
+
+    if issue_count == 0:
+        add_issue(
+            "Info",
+            "UpgradeReadiness",
+            "NoRoadblocksDetected",
+            "",
+            "No upgrade roadblocks were detected from the collected ElastiCache and CloudWatch signals.",
+        )
+
+    return worksheet
+
+
 def get_clusters_info(session):
     """Calculate the running/reserved instances in ElastiCache.
     Args:
@@ -214,6 +517,7 @@ def get_clusters_info(session):
     results = {
         "elc_running_instances": {},
         "elc_reserved_instances": {},
+        "elc_serverless_caches": {},
     }
 
     paginator = conn.get_paginator("describe_cache_clusters")
@@ -251,6 +555,29 @@ def get_clusters_info(session):
             ):
                 cluster_id = instance["CacheClusterId"]
                 results["elc_running_instances"][cluster_id] = instance
+
+    next_token = None
+    while True:
+        try:
+            request = {"NextToken": next_token} if next_token else {}
+            serverless_caches = conn.describe_serverless_caches(**request)
+        except:
+            break
+
+        if not isinstance(serverless_caches, dict):
+            break
+
+        for serverless_cache in serverless_caches.get("ServerlessCaches", []):
+            if serverless_cache["Status"] == "available" and (
+                serverless_cache["Engine"] == "redis"
+                or serverless_cache["Engine"] == "valkey"
+            ):
+                cache_name = serverless_cache["ServerlessCacheName"]
+                results["elc_serverless_caches"][cache_name] = serverless_cache
+
+        next_token = serverless_caches.get("NextToken")
+        if not next_token:
+            break
 
     paginator = conn.get_paginator("describe_reserved_cache_nodes")
     page_iterator = paginator.paginate()
@@ -294,6 +621,25 @@ def get_metric(cloud_watch, cluster_id, node, metric, aggregation, period):
         Dimensions=[
             {"Name": "CacheClusterId", "Value": cluster_id},
             {"Name": "CacheNodeId", "Value": node},
+        ],
+        StartTime=then.isoformat(),
+        EndTime=today.isoformat(),
+        Period=period,
+        Statistics=[aggregation],
+    )
+
+    raw_data = [rec[aggregation] for rec in response["Datapoints"]]
+    return raw_data
+
+
+def get_serverless_metric(cloud_watch, cluster_id, metric, aggregation, period):
+    today = datetime.date.today() + datetime.timedelta(days=1)
+    then = today - datetime.timedelta(days=METRIC_COLLECTION_PERIOD_DAYS)
+    response = cloud_watch.get_metric_statistics(
+        Namespace="AWS/ElastiCache",
+        MetricName=metric,
+        Dimensions=[
+            {"Name": "clusterId", "Value": cluster_id},
         ],
         StartTime=then.isoformat(),
         EndTime=today.isoformat(),
@@ -372,11 +718,28 @@ def create_workbook(outDir, section, region_name):
     for metric, _, _ in get_max_metrics_hourly():
         df_columns.append(metric)
     df_columns.append("Engine")
+    df_columns.append("EngineVersion")
     df_columns.append("QPF")
     ws.append(df_columns)
 
     ws = wb.create_sheet(RESERVED_INSTANCES_WORKSHEET_NAME)
     df_columns = ["Instance Type", "Count", "Remaining Time (days)"]
+    ws.append(df_columns)
+
+    ws = wb.create_sheet(UPGRADE_READINESS_WORKSHEET_NAME)
+    df_columns = [
+        "Source",
+        "ClusterId",
+        "NodeId",
+        "NodeRole",
+        "Engine",
+        "EngineVersion",
+        "Severity",
+        "Category",
+        "Signal",
+        "ObservedValue",
+        "Recommendation",
+    ]
     ws.append(df_columns)
     return wb
 
@@ -390,7 +753,9 @@ def get_running_instances_metrics(wb, clusters_info, session):
     """
     cloud_watch = session.client("cloudwatch")
     running_instances = clusters_info["elc_running_instances"]
+    serverless_caches = clusters_info.get("elc_serverless_caches", {})
     ws = wb[RUNNING_INSTANCES_WORKSHEET_NAME]
+    upgrade_ws = wb[UPGRADE_READINESS_WORKSHEET_NAME]
     row = []
 
     for instanceId, instanceDetails in running_instances.items():
@@ -424,6 +789,7 @@ def get_running_instances_metrics(wb, clusters_info, session):
             row.append("%s" % instanceDetails["PreferredAvailabilityZone"])
             row.append("%s" % snapshotRetentionLimit)
 
+            metric_values = {}
             for metric, aggregation, period in get_max_metrics_weekly():
                 data_points = get_metric(
                     cloud_watch,
@@ -434,6 +800,7 @@ def get_running_instances_metrics(wb, clusters_info, session):
                     period,
                 )
                 data_point = 0 if len(data_points) == 0 else data_points[0]
+                metric_values[metric] = data_point
                 row.append(data_point)
             for metric, aggregation, period in get_max_metrics_hourly():
                 data_points = get_metric(
@@ -449,11 +816,82 @@ def get_running_instances_metrics(wb, clusters_info, session):
                 # in order to get the real hourly stats. Cloudwatch is sampling at minimum once every minute
                 # so we need to multiply by 60 in order to simulate an hourly throughput. In order to get
                 # actual operation per second we then need to divide by 3600.
-                row.append(round(data_point / 60))
+                hourly_value = round(data_point / 60)
+                metric_values[metric] = hourly_value
+                row.append(hourly_value)
             row.append("%s" % instanceDetails["Engine"])
+            row.append("%s" % instanceDetails.get("EngineVersion", ""))
             row.append("")  # Empty qpf column
             ws.append(row)
+            append_upgrade_readiness_issues(
+                upgrade_ws,
+                clusterId,
+                instanceId,
+                nodeRole,
+                instanceDetails,
+                snapshotRetentionLimit,
+                metric_values,
+            )
             row = []
+
+    for cacheId, cacheDetails in serverless_caches.items():
+        print("Fetching serverless cache %s details" % cacheId)
+        snapshotRetentionLimit = cacheDetails.get("SnapshotRetentionLimit", -1)
+        region = get_region_from_arn(cacheDetails.get("ARN", ""))
+
+        row.append("EC-Serverless")
+        row.append("%s" % cacheId)
+        row.append("")
+        row.append("Serverless")
+        row.append("serverless")
+        row.append("%s" % region)
+        row.append("%s" % snapshotRetentionLimit)
+
+        metric_values = {}
+        for metric, aggregation, period in get_max_metrics_weekly():
+            if metric not in SERVERLESS_SUPPORTED_METRICS:
+                row.append("")
+                continue
+
+            data_points = get_serverless_metric(
+                cloud_watch,
+                cacheId,
+                metric,
+                aggregation,
+                period,
+            )
+            data_point = 0 if len(data_points) == 0 else data_points[0]
+            metric_values[metric] = data_point
+            row.append(data_point)
+
+        for metric, _, _ in get_max_metrics_hourly():
+            row.append("")
+
+        row.append("%s" % cacheDetails["Engine"])
+        row.append(
+            "%s"
+            % cacheDetails.get(
+                "FullEngineVersion", cacheDetails.get("MajorEngineVersion", "")
+            )
+        )
+        row.append("")
+        ws.append(row)
+        append_upgrade_readiness_issues(
+            upgrade_ws,
+            cacheId,
+            "",
+            "Serverless",
+            {
+                "Engine": cacheDetails["Engine"],
+                "EngineVersion": cacheDetails.get(
+                    "FullEngineVersion", cacheDetails.get("MajorEngineVersion", "")
+                ),
+            },
+            snapshotRetentionLimit,
+            metric_values,
+            source="EC-Serverless",
+        )
+        row = []
     return wb
 
 
@@ -472,30 +910,32 @@ def get_reserved_instances_info(wb, clusters_info):
 
 
 def process_aws_account(config, section, outDir):
-    # Check if credentials are provided in the config file
+    region_name = config.get(section, "region_name")
+    session_kwargs = {"region_name": region_name}
+
+    # Prefer explicit credentials from config.ini when present.
     if config.has_option(section, "aws_access_key_id") and config.has_option(
         section, "aws_secret_access_key"
     ):
-        aws_access_key_id = config.get(section, "aws_access_key_id")
-        aws_secret_access_key = config.get(section, "aws_secret_access_key")
-        region_name = config.get(section, "region_name")
-
-        if config.has_option(section, "aws_session_token"):
-            aws_session_token = config.get(section, "aws_session_token")
-        else:
-            aws_session_token = None
-
-        # Create session with credentials
-        session = boto3.Session(
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-            aws_session_token=aws_session_token,
-            region_name=region_name,
+        session_kwargs["aws_access_key_id"] = config.get(section, "aws_access_key_id")
+        session_kwargs["aws_secret_access_key"] = config.get(
+            section, "aws_secret_access_key"
         )
-    else:
-        # No credentials in config file, rely on instance profile credentials
-        region_name = config.get(section, "region_name")
-        session = boto3.Session(region_name=region_name)
+        if config.has_option(section, "aws_session_token"):
+            session_kwargs["aws_session_token"] = config.get(
+                section, "aws_session_token"
+            )
+    elif config.has_option(section, "profile_name"):
+        session_kwargs["profile_name"] = config.get(section, "profile_name")
+
+    session = boto3.Session(**session_kwargs)
+
+    sts = session.client("sts")
+    identity = sts.get_caller_identity()
+    print(f"Using AWS identity: {identity['Arn']}")
+
+    print(f"Requesting information for the {section} nodes")
+    clusters_info = get_clusters_info(session)
 
     print(f"Requesting information for the {section} nodes")
     clusters_info = get_clusters_info(session)
